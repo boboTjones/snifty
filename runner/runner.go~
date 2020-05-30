@@ -1,0 +1,10 @@
+package main
+
+import (
+	//"github.com/bobotjones/snifty"
+	"fmt"
+)
+
+func main() {
+	fmt.Println("wat")
+}

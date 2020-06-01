@@ -18,6 +18,26 @@
 
 package main
 
-func main() {
+import (
+	"flag"
+	"fmt"
 
+	"github.com/bobotjones/snifty"
+	"github.com/google/gopacket/pcap"
+)
+
+var greedy bool
+var max int
+
+func init() {
+	flag.BoolVar(&greedy, "g", false, "Run SniftySniff in greedy mode")
+	flag.IntVar(&max, "m", 0, "Specific the number of packets to collect")
+}
+
+func main() {
+	flag.Parse()
+	fmt.Println(max)
+	fmt.Printf("Sniffing HTTP traffic. Greedy? %v\n", greedy)
+	hs := snifty.NewHttpSniff("en0", 1600, max, pcap.BlockForever, greedy)
+	hs.Listen()
 }

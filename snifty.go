@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	_ "github.com/tsg/gopacket/layers"
 )
 
 type HttpSniff struct {
@@ -36,43 +36,94 @@ type HttpSniff struct {
 	SnapLen int32
 	Timeout time.Duration
 	Max     int
+	Greedy  bool
 }
 
-func NewHttpSniff(iface string, snaplen int32, max int, timeout time.Duration) *HttpSniff {
+func NewHttpSniff(iface string, snaplen int32, max int, timeout time.Duration, greedy bool) *HttpSniff {
 	return &HttpSniff{
 		IFace:   iface,
 		SnapLen: snaplen,
 		Max:     max,
 		Timeout: timeout,
+		Greedy:  greedy,
 	}
 }
 
-func (hs *HttpSniff) Listen() string {
+// Listen currently prints the layer 4 payload of the packet
+// Not sure if I want to have it just return the PacketSource
+// or some kind of listener so I can use channels to exit on command.
+// make a fastsniff and a slowsniff switch on command line with flag in ss
+
+func (hs *HttpSniff) Listen() {
+	if hs.Greedy {
+		hs.slowSniff()
+	} else {
+		hs.fastSniff()
+	}
+}
+
+//func (hs *HttpSniff) Close() {}
+
+// Slow sniff listens to tcp and filters packets
+// Slows everything down.
+func (hs *HttpSniff) slowSniff() {
+	i := 0
 	if handle, err := pcap.OpenLive(hs.IFace, hs.SnapLen, true, hs.Timeout); err != nil {
 		log.Fatal(err)
 		// XX ToDo(erin): baking in the ports here, for now; revisit later.
 	} else if err := handle.SetBPFFilter("tcp"); err != nil {
 		log.Fatal(err)
 	} else {
-		heads := regexp.MustCompile(`GET|POST|PUT|DELETE|OPTIONS`)
-		i := 0
 		ps := gopacket.NewPacketSource(handle, handle.LinkType())
-		//ps.DecodeOptions.Lazy = true
 		for p := range ps.Packets() {
-			i++
-			if a := p.ApplicationLayer(); a != nil {
-				if heads.MatchString(string(a.Payload())) {
-					fmt.Printf("%v\n", string(a.Payload()))
-				}
-			}
+			slowProcess(p)
 			if i >= hs.Max {
+				fmt.Printf("Exiting after %s packets", i)
 				os.Exit(0)
 			}
 		}
 	}
-	return "dammit"
 }
 
-func (hs *HttpSniff) Close() {
+// Fast sniff only captures requests with a destination port of 80.
+// Obviously runs a lot faster
+func (hs *HttpSniff) fastSniff() {
+	i := 0
+	if handle, err := pcap.OpenLive(hs.IFace, hs.SnapLen, true, hs.Timeout); err != nil {
+		log.Fatal(err)
+	} else if err := handle.SetBPFFilter("tcp and dst port 80"); err != nil {
+		log.Fatal(err)
+	} else {
+		ps := gopacket.NewPacketSource(handle, handle.LinkType())
+		for p := range ps.Packets() {
+			fastProcess(p)
+			if i >= hs.Max {
+				fmt.Printf("Exiting after %s packets", i)
+				os.Exit(0)
+			}
+		}
+	}
+}
 
+func slowProcess(p gopacket.Packet) {
+	heads := regexp.MustCompile(`^(GET|POST|PUT|DELETE|OPTIONS|HEAD)`)
+	if a := p.ApplicationLayer(); a != nil {
+		if heads.Match(a.Payload()) {
+			var dest layers.TCPPort
+			if tcp := p.Layer(layers.LayerTypeTCP); tcp != nil {
+				if data, ok := tcp.(*layers.TCP); ok {
+					dest = data.DstPort
+				} else {
+					log.Fatal(ok)
+				}
+			}
+			fmt.Printf("Request to %s\n%v\n", dest, string(a.Payload()))
+		}
+	}
+}
+
+func fastProcess(p gopacket.Packet) {
+	if a := p.ApplicationLayer(); a != nil {
+		fmt.Printf("Request to port 80\n%s\n", a.Payload())
+	}
 }

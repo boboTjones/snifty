@@ -37,22 +37,22 @@ type HttpSniff struct {
 	Timeout time.Duration
 	Max     int
 	Greedy  bool
+	Exit    chan bool
 }
 
 func NewHttpSniff(iface string, snaplen int32, max int, timeout time.Duration, greedy bool) *HttpSniff {
+	exit := make(chan bool)
 	return &HttpSniff{
 		IFace:   iface,
 		SnapLen: snaplen,
 		Max:     max,
 		Timeout: timeout,
 		Greedy:  greedy,
+		Exit:    exit,
 	}
 }
 
-// Listen currently prints the layer 4 payload of the packet
-// Not sure if I want to have it just return the PacketSource
-// or some kind of listener so I can use channels to exit on command.
-// make a fastsniff and a slowsniff switch on command line with flag in ss
+// XX ToDo(erin) implement some kind of channel so can send exit command.
 
 func (hs *HttpSniff) Listen() {
 	if hs.Greedy {
@@ -62,7 +62,9 @@ func (hs *HttpSniff) Listen() {
 	}
 }
 
-//func (hs *HttpSniff) Close() {}
+func (hs *HttpSniff) Close() {
+	os.Exit(0)
+}
 
 // Slow sniff listens to tcp and filters packets
 // Slows everything down.
@@ -78,8 +80,8 @@ func (hs *HttpSniff) slowSniff() {
 		for p := range ps.Packets() {
 			slowProcess(p)
 			if i >= hs.Max {
-				fmt.Printf("Exiting after %s packets", i)
-				os.Exit(0)
+				fmt.Printf("Exiting after %d packets", i)
+				hs.Close()
 			}
 		}
 	}
@@ -98,8 +100,8 @@ func (hs *HttpSniff) fastSniff() {
 		for p := range ps.Packets() {
 			fastProcess(p)
 			if i >= hs.Max {
-				fmt.Printf("Exiting after %s packets", i)
-				os.Exit(0)
+				fmt.Printf("Exiting after %d packets", i)
+				hs.Close()
 			}
 		}
 	}

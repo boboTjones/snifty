@@ -9,7 +9,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func genTraff() {
+func genTraffic() {
 	cmd := exec.Command("curl", "http://www.google.com/")
 	cmd.Run()
 }
@@ -22,8 +22,9 @@ func MakeNewHttpSniff() *HttpSniff {
 	return &HttpSniff{
 		IFace:   "en0",
 		SnapLen: 1024,
-		Max:     100,
+		Max:     10,
 		Timeout: timeout,
+		Greedy:  true,
 	}
 }
 
@@ -33,17 +34,17 @@ func TestNewHttpSniff(t *testing.T) {
 	if err != nil {
 		fmt.Errorf("%v", err)
 	}
-	if got := NewHttpSniff("en0", 1024, 100, timeout); !cmp.Equal(got, want) {
+	if got := NewHttpSniff("en0", 1024, 100, timeout, true); !cmp.Equal(got, want) {
 		t.Errorf("Make new HttpSniff\n\tWanted: %T; Got: %T\n ", want, got)
 	}
 }
 
 func TestListen(t *testing.T) {
-	// XX ToDo(erin): currently mocked up to pass. Will change when
-	// I figure out how I want this to work
-	want := "dammit"
+	// XX ToDo(erin): this fails. Fix it.
 	hs := MakeNewHttpSniff()
-	if got := hs.Listen(); got != want {
-		t.Errorf("sniff test; got: %q; want: %q", got, want)
+	defer hs.Close()
+	for {
+		go hs.Listen()
+		go genTraffic()
 	}
 }

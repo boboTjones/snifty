@@ -21,16 +21,15 @@ package snifty
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"regexp"
 	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/pcap"
+	_ "github.com/tsg/gopacket/layers"
 )
-
-func Hw() string {
-	return "Hi, mom!"
-}
 
 type HttpSniff struct {
 	IFace   string
@@ -48,24 +47,32 @@ func NewHttpSniff(iface string, snaplen int32, max int, timeout time.Duration) *
 	}
 }
 
-func (hs *HttpSniff) Sniff() string {
-	// make a struct to pass to this, containing all of the necessary information plus
-	// the itera value below for the test case of 10 packets.
+func (hs *HttpSniff) Listen() string {
 	if handle, err := pcap.OpenLive(hs.IFace, hs.SnapLen, true, hs.Timeout); err != nil {
-		panic(err)
-	} else if err := handle.SetBPFFilter("tcp"); err != nil { // optional
-		panic(err)
+		log.Fatal(err)
+		// XX ToDo(erin): baking in the ports here, for now; revisit later.
+	} else if err := handle.SetBPFFilter("tcp"); err != nil {
+		log.Fatal(err)
 	} else {
+		heads := regexp.MustCompile(`GET|POST|PUT|DELETE|OPTIONS`)
 		i := 0
-		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-		for packet := range packetSource.Packets() {
+		ps := gopacket.NewPacketSource(handle, handle.LinkType())
+		//ps.DecodeOptions.Lazy = true
+		for p := range ps.Packets() {
 			i++
-			//handlePacket(packet) // Do something with a packet here.
-			fmt.Printf("%v\n", packet)
+			if a := p.ApplicationLayer(); a != nil {
+				if heads.MatchString(string(a.Payload())) {
+					fmt.Printf("%v\n", string(a.Payload()))
+				}
+			}
 			if i >= hs.Max {
 				os.Exit(0)
 			}
 		}
 	}
 	return "dammit"
+}
+
+func (hs *HttpSniff) Close() {
+
 }

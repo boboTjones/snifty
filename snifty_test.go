@@ -34,7 +34,7 @@ func TestNewHttpSniff(t *testing.T) {
 	if err != nil {
 		fmt.Errorf("%v", err)
 	}
-	if got := NewHttpSniff("en0", 1024, 100, timeout, true); !cmp.Equal(got, want) {
+	if got := NewHttpSniff("en0", 1024, 10, timeout, true); !cmp.Equal(got, want) {
 		t.Errorf("Make new HttpSniff\n\tWanted: %T; Got: %T\n ", want, got)
 	}
 }

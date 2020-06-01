@@ -78,6 +78,7 @@ func (hs *HttpSniff) slowSniff() {
 	} else {
 		ps := gopacket.NewPacketSource(handle, handle.LinkType())
 		for p := range ps.Packets() {
+			i++
 			slowProcess(p)
 			if i >= hs.Max {
 				fmt.Printf("Exiting after %d packets", i)
@@ -98,6 +99,7 @@ func (hs *HttpSniff) fastSniff() {
 	} else {
 		ps := gopacket.NewPacketSource(handle, handle.LinkType())
 		for p := range ps.Packets() {
+			i++
 			fastProcess(p)
 			if i >= hs.Max {
 				fmt.Printf("Exiting after %d packets", i)

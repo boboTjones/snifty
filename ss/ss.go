@@ -36,8 +36,8 @@ func init() {
 
 func main() {
 	flag.Parse()
-	fmt.Println(max)
 	fmt.Printf("Sniffing HTTP traffic. Greedy? %v\n", greedy)
+	// Possibly if max is set, pcap.BlockForever breaks it.
 	hs := snifty.NewHttpSniff("en0", 1600, max, pcap.BlockForever, greedy)
 	hs.Listen()
 }

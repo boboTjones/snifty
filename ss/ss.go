@@ -1,5 +1,3 @@
-// take a config file.
-
 // Create a simple console program that monitors HTTP traffic on your machine:
 // 1. Sniff network traffic to detect HTTP activity.
 // 2. Every 10s, display in the console the sections of the web site with the most
@@ -17,55 +15,9 @@
 //    on the page for historical reasons.
 // 8. Write a test for the alerting logic.
 // 9. Explain how you’d improve on this application design.
-package snifty
 
-import (
-	"fmt"
-	"os"
-	"time"
+package main
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/pcap"
-)
+func main() {
 
-func Hw() string {
-	return "Hi, mom!"
-}
-
-type HttpSniff struct {
-	IFace   string
-	SnapLen int32
-	Timeout time.Duration
-	Max     int
-}
-
-func NewHttpSniff(iface string, snaplen int32, max int, timeout time.Duration) *HttpSniff {
-	return &HttpSniff{
-		IFace:   iface,
-		SnapLen: snaplen,
-		Max:     max,
-		Timeout: timeout,
-	}
-}
-
-func (hs *HttpSniff) Sniff() string {
-	// make a struct to pass to this, containing all of the necessary information plus
-	// the itera value below for the test case of 10 packets.
-	if handle, err := pcap.OpenLive(hs.IFace, hs.SnapLen, true, hs.Timeout); err != nil {
-		panic(err)
-	} else if err := handle.SetBPFFilter("tcp"); err != nil { // optional
-		panic(err)
-	} else {
-		i := 0
-		packetSource := gopacket.NewPacketSource(handle, handle.LinkType())
-		for packet := range packetSource.Packets() {
-			i++
-			//handlePacket(packet) // Do something with a packet here.
-			fmt.Printf("%v\n", packet)
-			if i >= hs.Max {
-				os.Exit(0)
-			}
-		}
-	}
-	return "dammit"
 }

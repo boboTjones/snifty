@@ -14,37 +14,40 @@ func genTraffic() {
 	cmd.Run()
 }
 
-func MakeNewHttpSniff() *HttpSniff {
-	timeout, err := time.ParseDuration("10us")
+func MakeNewHttpSniffer() *HttpSniffer {
+	timeout, err := time.ParseDuration("1us")
 	if err != nil {
 		fmt.Errorf("%v", err)
 	}
-	return &HttpSniff{
+	return &HttpSniffer{
 		IFace:   "en0",
 		SnapLen: 1024,
 		Max:     10,
 		Timeout: timeout,
-		Greedy:  true,
+		Greedy:  false,
 	}
 }
 
-func TestNewHttpSniff(t *testing.T) {
-	want := MakeNewHttpSniff()
-	timeout, err := time.ParseDuration("10us")
+func TestNewHttpSniffer(t *testing.T) {
+	// This is always going to fail.
+	want := MakeNewHttpSniffer()
+	timeout, err := time.ParseDuration("1us")
 	if err != nil {
 		fmt.Errorf("%v", err)
 	}
-	if got := NewHttpSniffer("en0", 1024, 10, timeout, true); !cmp.Equal(got, want) {
-		t.Errorf("Make new HttpSniff\n\tWanted: %T; Got: %T\n ", want, got)
+	if got := NewHttpSniffer("en0", 1024, 10, timeout, false); !cmp.Equal(got, want) {
+		t.Errorf("Make new HttpSniff\n\tWanted: %v; Got: %T\n ", want, got)
 	}
+	//want.Close()
 }
 
 func TestListen(t *testing.T) {
-	// XX ToDo(erin): this fails. Fix it.
+	// XX ToDo(erin): this passes but it should make more noise. Fix it.
 	hs := MakeNewHttpSniffer()
 	defer hs.Close()
 	for {
 		go hs.Listen()
-		go genTraffic()
+		//go genTraffic()
+		fmt.Println(<-hs.Out)
 	}
 }

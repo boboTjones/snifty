@@ -20,6 +20,7 @@
 package snifty
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -32,8 +33,11 @@ import (
 )
 
 type HttpPacket struct {
-	DstPort layers.TCPPort
-	Payload string
+	DstPort   []byte
+	Path      []byte
+	Host      []byte
+	UserAgent []byte
+	Raw       []byte
 }
 
 type HttpSniffer struct {
@@ -73,30 +77,43 @@ func (hs *HttpSniffer) Listen() {
 	}
 
 	if handle, err := pcap.OpenLive(hs.IFace, hs.SnapLen, true, hs.Timeout); err != nil {
+		// sudo sysctl debug.bpf_maxdevices=1024 doesn't help
 		log.Fatal(err)
 	} else if err := handle.SetBPFFilter(bpfFilter); err != nil {
+
 		log.Fatal(err)
 	} else {
 		ps := gopacket.NewPacketSource(handle, handle.LinkType())
 		for p := range ps.Packets() {
 			if a := p.ApplicationLayer(); a != nil {
+				hp := HttpPacket{}
+				hp.Raw = make([]byte, len(a.Payload()))
 				if hs.Greedy {
-					hp := HttpPacket{}
-					heads := regexp.MustCompile(`^(GET|POST|PUT|DELETE|OPTIONS|HEAD)`)
+					// XX ToDo(erin):
+					// Somehow an occasional empty packet is getting past
+					// the header match. Suspect this has something to do
+					// with the error:
+					// (cannot open BPF device) /dev/bpf0: Too many open files
+					// Going to sideline this feature for now and revisit it at the end
+					// of the week if there is still time.
+					heads := regexp.MustCompile(`^(GET|POST)`)
 					if heads.Match(a.Payload()) {
 						if tcp := p.Layer(layers.LayerTypeTCP); tcp != nil {
 							if data, ok := tcp.(*layers.TCP); ok {
-								hp.DstPort = data.DstPort
-								hp.Payload = string(a.Payload())
+								hp.DstPort = []byte(data.DstPort.String())
+								copy(hp.Raw, a.Payload())
+								fmt.Printf("Before process: %v\n", hp)
 							} else {
 								log.Fatal(ok)
 							}
 						}
-						hs.Out <- hp
 					}
 				} else {
-					hs.Out <- HttpPacket{DstPort: 80, Payload: string(a.Payload())}
+					hp.DstPort = []byte("80(http)")
+					copy(hp.Raw, a.Payload())
 				}
+				hp.processPayload()
+				hs.Out <- hp
 			}
 			// XX ToDo(erin): grabs Max total packets, doesn't display Max total packets.
 			i++
@@ -110,4 +127,20 @@ func (hs *HttpSniffer) Listen() {
 
 func (hs *HttpSniffer) Close() {
 	os.Exit(0)
+}
+
+func (hp *HttpPacket) processPayload() {
+	//defer handlePanic()
+	ua := regexp.MustCompile(`^User-Agent:`)
+	s := bytes.Split(hp.Raw, []byte("\r\n"))
+	for _, d := range s {
+		if ua.Match(d) {
+			// XX ToDo(erin): assumes there's only one colon in the UA string.
+			hp.UserAgent = bytes.Split(d, []byte(": "))[1]
+		} else {
+			hp.UserAgent = []byte("Unknown User Agent")
+		}
+	}
+	hp.Path = bytes.Split(s[0], []byte(" "))[1]
+	hp.Host = bytes.Split(s[1], []byte(" "))[1]
 }

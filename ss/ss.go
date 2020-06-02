@@ -21,9 +21,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 
 	"github.com/bobotjones/snifty"
 	"github.com/google/gopacket/pcap"
+	"github.com/prologic/bitcask"
 )
 
 var greedy bool
@@ -36,11 +38,20 @@ func init() {
 
 func main() {
 	flag.Parse()
+	db, err := bitcask.Open("/tmp/db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
 	fmt.Printf("Sniffing HTTP traffic. Greedy? %v\n", greedy)
 	// Possibly if max is set, pcap.BlockForever breaks it.
 	hs := snifty.NewHttpSniffer("en0", 1600, max, pcap.BlockForever, greedy)
+	defer hs.Close()
 	for {
 		go hs.Listen()
-		fmt.Println(<-hs.Out)
+		//x := <-hs.Out
+		//db.Put(x.DstPort, x.Payload)
+		//fmt.Printf("%v\n", x)
 	}
 }

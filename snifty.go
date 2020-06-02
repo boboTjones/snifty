@@ -77,25 +77,17 @@ func (hs *HttpSniffer) Listen() {
 	}
 
 	if handle, err := pcap.OpenLive(hs.IFace, hs.SnapLen, true, hs.Timeout); err != nil {
-		// sudo sysctl debug.bpf_maxdevices=1024 doesn't help
 		log.Fatal(err)
 	} else if err := handle.SetBPFFilter(bpfFilter); err != nil {
-
 		log.Fatal(err)
 	} else {
 		ps := gopacket.NewPacketSource(handle, handle.LinkType())
 		for p := range ps.Packets() {
 			if a := p.ApplicationLayer(); a != nil {
-				hp := HttpPacket{}
 				if hs.Greedy {
-					// XX ToDo(erin):
-					// Somehow an occasional empty packet is getting past
-					// the header match.
-					// Going to sideline this feature for now and revisit it at the end
-					// of the week if there is still time.
 					heads := regexp.MustCompile(`^(GET|POST)`)
 					if heads.Match(a.Payload()) {
-						fmt.Printf("Lookie after match: %v\n", string(a.Payload()))
+						hp := HttpPacket{}
 						hp.Raw = make([]byte, len(a.Payload()))
 						copy(hp.Raw, a.Payload())
 						if tcp := p.Layer(layers.LayerTypeTCP); tcp != nil {
@@ -109,16 +101,16 @@ func (hs *HttpSniffer) Listen() {
 						}
 					}
 				} else {
+					hp := HttpPacket{}
 					hp.DstPort = []byte("80(http)")
 					hp.Raw = make([]byte, len(a.Payload()))
 					copy(hp.Raw, a.Payload())
 					hp.processPayload()
 					hs.Out <- hp
-
 				}
 			}
 			// XX ToDo(erin): grabs Max total packets, doesn't display Max total packets.
-			// Only used for testing.
+			// Low priority. Only used for testing.
 			i++
 			if hs.Max != 0 && i >= hs.Max {
 				fmt.Printf("Exiting after %d packets\n", i)
@@ -129,6 +121,8 @@ func (hs *HttpSniffer) Listen() {
 }
 
 func (hs *HttpSniffer) Close() {
+	// XX ToDo(erin) figure out how to close the openlive
+	// thing and do that here instead of bailing.
 	os.Exit(0)
 }
 
@@ -140,6 +134,8 @@ func (hp *HttpPacket) processPayload() {
 	for _, d := range s {
 		if ua.Match(d) {
 			// XX ToDo(erin): assumes there's only one colon in the UA string.
+			// Currently not used for anything. Grabbed for "interesting summary statistics"
+			// Might nix.
 			hp.UserAgent = bytes.Split(d, []byte(": "))[1]
 		} else {
 			hp.UserAgent = []byte("Unknown User Agent")

@@ -23,6 +23,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"sort"
 
 	"github.com/bobotjones/snifty"
 	"github.com/google/gopacket/pcap"
@@ -60,8 +61,20 @@ func (r *Results) addResult(in snifty.HttpPacket) {
 	r.Results = append(r.Results, result)
 }
 
-func (r *Results) dump() {
-	//
+// XX ToDo(erin): needs a channel
+func (r *Results) dumpSortedByCount() {
+	//Yuck
+	counts := make([]int, len(r.Results))
+	for _, d := range r.Results {
+		counts = append(counts, d.Count)
+	}
+	fmt.Println(counts)
+	sort.Ints(counts)
+	fmt.Println(counts)
+
+	for x := range counts {
+		fmt.Printf("%v: %v\n", r.Results[x].Host, r.Results[x].Count)
+	}
 }
 
 func init() {
@@ -77,9 +90,8 @@ func main() {
 	fmt.Printf("Sniffing HTTP traffic. Greedy? %v\n", hs.Greedy)
 	defer hs.Close()
 	go hs.Listen()
-
 	for {
 		results.addResult(<-hs.Out)
-		fmt.Printf("OUTPUT: %v\n", results)
 	}
+
 }

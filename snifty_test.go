@@ -44,7 +44,6 @@ func TestNewHttpSniffer(t *testing.T) {
 
 func TestListen(t *testing.T) {
 	// XX ToDo(erin): this passes but it should make more noise. Fix it.
-	//hs := MakeNewHttpSniffer()
 	hs := NewHttpSniffer("en0", 1600, 20, pcap.BlockForever, false)
 	fmt.Printf("Sniffing HTTP traffic. Greedy? %v\n", hs.Greedy)
 	defer hs.Close()

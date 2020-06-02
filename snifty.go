@@ -31,103 +31,83 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-type HttpSniff struct {
+type HttpPacket struct {
+	DstPort layers.TCPPort
+	Payload string
+}
+
+type HttpSniffer struct {
 	IFace   string
 	SnapLen int32
 	Timeout time.Duration
 	Max     int
 	Greedy  bool
+	Out     chan HttpPacket
 	Exit    chan bool
 }
 
-func NewHttpSniff(iface string, snaplen int32, max int, timeout time.Duration, greedy bool) *HttpSniff {
+func NewHttpSniffer(iface string, snaplen int32, max int, timeout time.Duration, greedy bool) *HttpSniffer {
 	exit := make(chan bool)
-	return &HttpSniff{
+	out := make(chan HttpPacket)
+	return &HttpSniffer{
 		IFace:   iface,
 		SnapLen: snaplen,
 		Max:     max,
 		Timeout: timeout,
 		Greedy:  greedy,
+		Out:     out,
 		Exit:    exit,
 	}
 }
 
-// XX ToDo(erin) implement some kind of channel so can send exit command.
+func (hs *HttpSniffer) Listen() {
+	//if <-hs.Exit {
+	//	hs.Close()
+	//}
 
-func (hs *HttpSniff) Listen() {
+	bpfFilter := "tcp and dst port 80"
+	i := 0
+
 	if hs.Greedy {
-		hs.slowSniff()
-	} else {
-		hs.fastSniff()
+		bpfFilter = "tcp"
 	}
-}
 
-func (hs *HttpSniff) Close() {
-	os.Exit(0)
-}
-
-// Slow sniff listens to tcp and filters packets
-// Slows everything down.
-func (hs *HttpSniff) slowSniff() {
-	i := 0
 	if handle, err := pcap.OpenLive(hs.IFace, hs.SnapLen, true, hs.Timeout); err != nil {
 		log.Fatal(err)
-		// XX ToDo(erin): baking in the ports here, for now; revisit later.
-	} else if err := handle.SetBPFFilter("tcp"); err != nil {
+	} else if err := handle.SetBPFFilter(bpfFilter); err != nil {
 		log.Fatal(err)
 	} else {
 		ps := gopacket.NewPacketSource(handle, handle.LinkType())
 		for p := range ps.Packets() {
-			i++
-			slowProcess(p)
-			if i >= hs.Max {
-				fmt.Printf("Exiting after %d packets", i)
-				hs.Close()
-			}
-		}
-	}
-}
-
-// Fast sniff only captures requests with a destination port of 80.
-// Obviously runs a lot faster
-func (hs *HttpSniff) fastSniff() {
-	i := 0
-	if handle, err := pcap.OpenLive(hs.IFace, hs.SnapLen, true, hs.Timeout); err != nil {
-		log.Fatal(err)
-	} else if err := handle.SetBPFFilter("tcp and dst port 80"); err != nil {
-		log.Fatal(err)
-	} else {
-		ps := gopacket.NewPacketSource(handle, handle.LinkType())
-		for p := range ps.Packets() {
-			i++
-			fastProcess(p)
-			if i >= hs.Max {
-				fmt.Printf("Exiting after %d packets", i)
-				hs.Close()
-			}
-		}
-	}
-}
-
-func slowProcess(p gopacket.Packet) {
-	heads := regexp.MustCompile(`^(GET|POST|PUT|DELETE|OPTIONS|HEAD)`)
-	if a := p.ApplicationLayer(); a != nil {
-		if heads.Match(a.Payload()) {
-			var dest layers.TCPPort
-			if tcp := p.Layer(layers.LayerTypeTCP); tcp != nil {
-				if data, ok := tcp.(*layers.TCP); ok {
-					dest = data.DstPort
+			if a := p.ApplicationLayer(); a != nil {
+				if hs.Greedy {
+					hp := HttpPacket{}
+					heads := regexp.MustCompile(`^(GET|POST|PUT|DELETE|OPTIONS|HEAD)`)
+					if heads.Match(a.Payload()) {
+						if tcp := p.Layer(layers.LayerTypeTCP); tcp != nil {
+							if data, ok := tcp.(*layers.TCP); ok {
+								hp.DstPort = data.DstPort
+								hp.Payload = string(a.Payload())
+							} else {
+								log.Fatal(ok)
+							}
+						}
+						hs.Out <- hp
+					}
 				} else {
-					log.Fatal(ok)
+					hs.Out <- HttpPacket{DstPort: 80, Payload: string(a.Payload())}
 				}
 			}
-			fmt.Printf("Request to %s\n%v\n", dest, string(a.Payload()))
+			// XX ToDo(erin): grabs Max total packets, doesn't display Max total packets.
+			i++
+			if hs.Max != 0 && i >= hs.Max {
+				fmt.Printf("Exiting after %d packets\n", i)
+				hs.Close()
+			}
 		}
 	}
 }
 
-func fastProcess(p gopacket.Packet) {
-	if a := p.ApplicationLayer(); a != nil {
-		fmt.Printf("Request to port 80\n%s\n", a.Payload())
-	}
+func (hs *HttpSniffer) Close() {
+	os.Exit(0)
 }

@@ -34,14 +34,14 @@ func TestNewHttpSniff(t *testing.T) {
 	if err != nil {
 		fmt.Errorf("%v", err)
 	}
-	if got := NewHttpSniff("en0", 1024, 10, timeout, true); !cmp.Equal(got, want) {
+	if got := NewHttpSniffer("en0", 1024, 10, timeout, true); !cmp.Equal(got, want) {
 		t.Errorf("Make new HttpSniff\n\tWanted: %T; Got: %T\n ", want, got)
 	}
 }
 
 func TestListen(t *testing.T) {
 	// XX ToDo(erin): this fails. Fix it.
-	hs := MakeNewHttpSniff()
+	hs := MakeNewHttpSniffer()
 	defer hs.Close()
 	for {
 		go hs.Listen()

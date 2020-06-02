@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"regexp"
 	"time"
@@ -33,9 +34,8 @@ import (
 )
 
 type HttpPacket struct {
+	Url       *url.URL
 	DstPort   []byte
-	Path      []byte
-	Host      []byte
 	UserAgent []byte
 	Raw       []byte
 }
@@ -87,22 +87,22 @@ func (hs *HttpSniffer) Listen() {
 		for p := range ps.Packets() {
 			if a := p.ApplicationLayer(); a != nil {
 				hp := HttpPacket{}
-				hp.Raw = make([]byte, len(a.Payload()))
 				if hs.Greedy {
 					// XX ToDo(erin):
 					// Somehow an occasional empty packet is getting past
-					// the header match. Suspect this has something to do
-					// with the error:
-					// (cannot open BPF device) /dev/bpf0: Too many open files
+					// the header match.
 					// Going to sideline this feature for now and revisit it at the end
 					// of the week if there is still time.
 					heads := regexp.MustCompile(`^(GET|POST)`)
 					if heads.Match(a.Payload()) {
+						fmt.Printf("Lookie after match: %v\n", string(a.Payload()))
+						hp.Raw = make([]byte, len(a.Payload()))
+						copy(hp.Raw, a.Payload())
 						if tcp := p.Layer(layers.LayerTypeTCP); tcp != nil {
 							if data, ok := tcp.(*layers.TCP); ok {
 								hp.DstPort = []byte(data.DstPort.String())
-								copy(hp.Raw, a.Payload())
-								fmt.Printf("Before process: %v\n", hp)
+								hp.processPayload()
+								hs.Out <- hp
 							} else {
 								log.Fatal(ok)
 							}
@@ -110,12 +110,15 @@ func (hs *HttpSniffer) Listen() {
 					}
 				} else {
 					hp.DstPort = []byte("80(http)")
+					hp.Raw = make([]byte, len(a.Payload()))
 					copy(hp.Raw, a.Payload())
+					hp.processPayload()
+					hs.Out <- hp
+
 				}
-				hp.processPayload()
-				hs.Out <- hp
 			}
 			// XX ToDo(erin): grabs Max total packets, doesn't display Max total packets.
+			// Only used for testing.
 			i++
 			if hs.Max != 0 && i >= hs.Max {
 				fmt.Printf("Exiting after %d packets\n", i)
@@ -131,6 +134,7 @@ func (hs *HttpSniffer) Close() {
 
 func (hp *HttpPacket) processPayload() {
 	//defer handlePanic()
+	var err error
 	ua := regexp.MustCompile(`^User-Agent:`)
 	s := bytes.Split(hp.Raw, []byte("\r\n"))
 	for _, d := range s {
@@ -141,6 +145,10 @@ func (hp *HttpPacket) processPayload() {
 			hp.UserAgent = []byte("Unknown User Agent")
 		}
 	}
-	hp.Path = bytes.Split(s[0], []byte(" "))[1]
-	hp.Host = bytes.Split(s[1], []byte(" "))[1]
+	path := bytes.Split(s[0], []byte(" "))[1]
+	host := bytes.Split(s[1], []byte(" "))[1]
+	hp.Url, err = url.Parse(fmt.Sprintf("http://%s%s", host, path))
+	if err != nil {
+		log.Fatal(err)
+	}
 }

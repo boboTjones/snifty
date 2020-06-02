@@ -19,6 +19,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
@@ -43,15 +44,29 @@ func main() {
 		log.Fatal(err)
 	}
 	defer db.Close()
+	fmt.Printf("%T\n", db)
 
-	fmt.Printf("Sniffing HTTP traffic. Greedy? %v\n", greedy)
 	// Possibly if max is set, pcap.BlockForever breaks it.
 	hs := snifty.NewHttpSniffer("en0", 1600, max, pcap.BlockForever, greedy)
+	fmt.Printf("Sniffing HTTP traffic. Greedy? %v\n", hs.Greedy)
 	defer hs.Close()
+	go hs.Listen()
+
 	for {
-		go hs.Listen()
-		//x := <-hs.Out
-		//db.Put(x.DstPort, x.Payload)
-		//fmt.Printf("%v\n", x)
+		x := <-hs.Out
+		data, err := json.Marshal(x)
+		if err != nil {
+			log.Fatal(err)
+		}
+		db.Put([]byte(x.Url.String()), data)
+		//fmt.Printf("%v\n", data)
+		fmt.Printf("OUTPUT: %v\n", x.Url.String())
+		//fmt.Printf("%s\n", <-db.Keys())
 	}
 }
+
+// tmp db unique string
+// store in database using url string as key
+// if found, increment counter
+// if not found, create new entry
+// remove db on exit

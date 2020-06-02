@@ -21,7 +21,6 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 
@@ -34,35 +33,31 @@ var max int
 
 type Result struct {
 	Host  string
-	Paths *bytes.Buffer
+	Paths [][]string
 	Count int
 }
 
-type Results []Result
-
-type sortResultsByCount struct{ Results }
-
-func (r Results) Len() int                      { return len(r) }
-func (r Results) Swap(i, j int)                 { r[i], r[j] = r[j], r[i] }
-func (s sortResultsByCount) Less(i, j int) bool { return s.Results[i].Count < s.Results[j].Count }
+type Results struct {
+	Results []Result
+}
 
 func (r *Results) addResult(in snifty.HttpPacket) {
-	for _, v := range *r {
+	for i, v := range r.Results {
 		if v.Host == in.Url.Host {
 			fmt.Printf("Updating results entry for host %s\n", v.Host)
-			v.Paths.WriteString(in.Url.Path)
-			v.Count = v.Count + 1
+			r.Results[i].Paths = append(r.Results[i].Paths, []string{in.Url.Path})
+			r.Results[i].Count++
 			return
 		}
 	}
 	fmt.Printf("Adding new host entry %s\n", in.Url.Host)
-	paths := bytes.NewBufferString(in.Url.Path)
+	paths := [][]string{[]string{in.Url.Path}}
 	result := Result{
 		Host:  in.Url.Host,
 		Paths: paths,
 		Count: 1,
 	}
-	*r = append(*r, result)
+	r.Results = append(r.Results, result)
 }
 
 func (r *Results) dump() {

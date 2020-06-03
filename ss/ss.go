@@ -76,10 +76,10 @@ func dump(r *Results) {
 					counts = append(counts, d.Count)
 				}
 				// Really?
-				sort.Ints(counts)
-				fmt.Println("Hits\tHost\t\tTimestamp")
+				sort.Sort(sort.Reverse(sort.IntSlice(counts)))
+				fmt.Println("Timestamp\t\tHits\tHost")
 				for x := range counts {
-					_, err := fmt.Fprintf(os.Stdout, "%v\t%v\t\t%v\n", r.Results[x].Count, r.Results[x].Host, t)
+					_, err := fmt.Fprintf(os.Stdout, "%s\t%v\t%v\n", t.Format("01.02.2006 15:04:05.99"), r.Results[x].Count, r.Results[x].Host)
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "%v\n", err)
 					}
@@ -98,7 +98,7 @@ func main() {
 	flag.Parse()
 	results := &Results{}
 	hs := snifty.NewHttpSniffer("en0", 1600, max, pcap.BlockForever, greedy)
-	fmt.Printf("Sniffing HTTP traffic. Greedy? %v\n", hs.Greedy)
+	fmt.Printf("Snifty Sniff, the HTTP sniffer that is nifty to sift\nGreedy? %v\n", hs.Greedy)
 	defer hs.Close()
 	go hs.Listen()
 	go dump(results)

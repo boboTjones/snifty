@@ -35,30 +35,26 @@ var greedy, version bool
 var max int
 
 type Result struct {
-	Host  string
-	Paths [][]string
-	Count int
+	Section string
+	Count   int
 }
 
 type Results struct {
 	Results []Result
 }
 
+//    the section for "http://my.site.com/pages/create' is "http://my.site.com/pages"
+
 func (r *Results) addResult(in snifty.HttpPacket) {
 	for i, v := range r.Results {
-		if v.Host == in.Url.Host {
-			//fmt.Printf("Updating results entry for host %s\n", v.Host)
-			r.Results[i].Paths = append(r.Results[i].Paths, []string{in.Url.Path})
+		if v.Section == in.Section {
 			r.Results[i].Count++
 			return
 		}
 	}
-	//fmt.Printf("Adding new host entry %s\n", in.Url.Host)
-	paths := [][]string{[]string{in.Url.Path}}
 	result := Result{
-		Host:  in.Url.Host,
-		Paths: paths,
-		Count: 1,
+		Section: in.Section,
+		Count:   1,
 	}
 	r.Results = append(r.Results, result)
 }
@@ -76,10 +72,10 @@ func dump(r *Results) {
 					counts = append(counts, d.Count)
 				}
 				// XX ToDo(erin): Really? Doesn't work all of the time, either. DIY this.
-				sort.Sort(sort.Reverse(sort.IntSlice(counts)))
-				fmt.Println("Timestamp\t\tHits\tHost")
+				sort.Ints(counts)
+				fmt.Println("Timestamp\t\tHits\tSection")
 				for x := range counts {
-					_, err := fmt.Fprintf(os.Stdout, "%s\t%v\t%v\n", t.Format("01.02.2006 15:04:05.99"), r.Results[x].Count, r.Results[x].Host)
+					_, err := fmt.Fprintf(os.Stdout, "%s\t%v\t%v\n", t.Format("01.02.2006 15:04:05.99"), r.Results[x].Count, r.Results[x].Section)
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "%v\n", err)
 					}

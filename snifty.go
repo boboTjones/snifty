@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"log"
-	"net/url"
 	"os"
 	"regexp"
 	"time"
@@ -34,7 +33,7 @@ import (
 )
 
 type HttpPacket struct {
-	Url       *url.URL
+	Section   string
 	DstPort   []byte
 	UserAgent []byte
 	Raw       []byte
@@ -124,7 +123,6 @@ func (hs *HttpSniffer) Close() {
 
 func (hp *HttpPacket) processPayload() {
 	//defer handlePanic()
-	var err error
 	ua := regexp.MustCompile(`^User-Agent:`)
 	s := bytes.Split(hp.Raw, []byte("\r\n"))
 	for _, d := range s {
@@ -137,10 +135,8 @@ func (hp *HttpPacket) processPayload() {
 			hp.UserAgent = []byte("Unknown User Agent")
 		}
 	}
-	path := bytes.Split(s[0], []byte(" "))[1]
+	rgx := regexp.MustCompile(`\/([a-z][0-9]+)\/|\/([\w\.html-]+)`)
+	section := rgx.Find(s[0])
 	host := bytes.Split(s[1], []byte(" "))[1]
-	hp.Url, err = url.Parse(fmt.Sprintf("http://%s%s", host, path))
-	if err != nil {
-		log.Fatal(err)
-	}
+	hp.Section = fmt.Sprintf("%s%s", host, section)
 }

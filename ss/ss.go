@@ -11,12 +11,14 @@
 //    add a message saying that “High traffic generated an alert - hits = {value}, triggered at {time}”.
 // 5. Whenever the total traffic drops again below that value on average for the past 2
 //    minutes, add another message detailing when the alert recovered.
-// 6. Whenever the total traffic drops again below that value on average for the past 2
-//    minutes, add another message detailing when the alert recovered.
-// 7. Make sure all messages showing when alerting thresholds are crossed remain visible
+//    2 minute window for avg rate
+//    every second sample the counter to see how much it has increased
+//    array of all samples collected up to 120 elements (ring buffer)
+//    average the last seven samples in the array
+// 6. Make sure all messages showing when alerting thresholds are crossed remain visible
 //    on the page for historical reasons.
-// 8. Write a test for the alerting logic.
-// 9. Explain how you’d improve on this application design.
+// 7. Write a test for the alerting logic.
+// 8. Explain how you’d improve on this application design.
 
 package main
 
@@ -24,8 +26,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"sort"
-	"time"
 
 	"github.com/bobotjones/snifty"
 	"github.com/google/gopacket/pcap"
@@ -33,57 +33,6 @@ import (
 
 var greedy, version bool
 var max int
-
-type Result struct {
-	Section string
-	Count   int
-}
-
-type Results struct {
-	Results []Result
-}
-
-//    the section for "http://my.site.com/pages/create' is "http://my.site.com/pages"
-
-func (r *Results) addResult(in snifty.HttpPacket) {
-	for i, v := range r.Results {
-		if v.Section == in.Section {
-			r.Results[i].Count++
-			return
-		}
-	}
-	result := Result{
-		Section: in.Section,
-		Count:   1,
-	}
-	r.Results = append(r.Results, result)
-}
-
-func dump(r *Results) {
-	fmt.Println("Collecting...")
-	ticker := time.NewTicker(10 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case t := <-ticker.C:
-			if len(r.Results) > 0 {
-				counts := []int{}
-				for _, d := range r.Results {
-					counts = append(counts, d.Count)
-				}
-				// XX ToDo(erin): Really? Doesn't work all of the time, either. DIY this.
-				sort.Ints(counts)
-				fmt.Println("Timestamp\t\tHits\tSection")
-				for x := range counts {
-					_, err := fmt.Fprintf(os.Stdout, "%s\t%v\t%v\n", t.Format("01.02.2006 15:04:05.99"), r.Results[x].Count, r.Results[x].Section)
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "%v\n", err)
-					}
-				}
-			}
-		}
-	}
-}
 
 func init() {
 	flag.BoolVar(&greedy, "g", false, "Run SniftySniff in greedy mode")
@@ -94,17 +43,17 @@ func init() {
 func main() {
 	flag.Parse()
 	if version {
-		fmt.Println("Snifty Sniff version 0.1. You're on the ground floor, baby.")
+		fmt.Println("Snifty Sniff version 0.1. We can only go up from here.")
 		os.Exit(0)
 	}
-	results := &Results{}
+	results := &snifty.Results{Counter: 0}
 	hs := snifty.NewHttpSniffer("en0", 1600, max, pcap.BlockForever, greedy)
-	fmt.Printf("Snifty Sniff, the HTTP sniffer that is nifty to sift\nGreedy? %v\n", hs.Greedy)
+	fmt.Printf("Snifty Sniff, the HTTP sniffer that is nifty.\nGreedy? %v\n", hs.Greedy)
 	defer hs.Close()
 	go hs.Listen()
-	go dump(results)
+	go results.Dump()
 	for {
-		results.addResult(<-hs.Out)
+		results.AddResult(<-hs.Out)
 	}
 
 }

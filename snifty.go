@@ -11,12 +11,14 @@
 //    add a message saying that “High traffic generated an alert - hits = {value}, triggered at {time}”.
 // 5. Whenever the total traffic drops again below that value on average for the past 2
 //    minutes, add another message detailing when the alert recovered.
-// 6. Whenever the total traffic drops again below that value on average for the past 2
-//    minutes, add another message detailing when the alert recovered.
-// 7. Make sure all messages showing when alerting thresholds are crossed remain visible
+//    2 minute window for avg rate
+//    every second sample the counter to see how much it has increased
+//    array of all samples collected up to 120 elements (ring buffer)
+//    average the last seven samples in the array
+// 6. Make sure all messages showing when alerting thresholds are crossed remain visible
 //    on the page for historical reasons.
-// 8. Write a test for the alerting logic.
-// 9. Explain how you’d improve on this application design.
+// 7. Write a test for the alerting logic.
+// 8. Explain how you’d improve on this application design.
 package snifty
 
 import (

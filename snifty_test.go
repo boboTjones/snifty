@@ -1,8 +1,12 @@
 package snifty
 
 import (
+	"bytes"
 	"fmt"
-	"os/exec"
+	"io/ioutil"
+	"log"
+	"math/rand"
+	"net/http"
 	"testing"
 	"time"
 
@@ -11,8 +15,35 @@ import (
 )
 
 func genTraffic() {
-	cmd := exec.Command("curl", "http://www.google.com/")
-	cmd.Run()
+	data, err := ioutil.ReadFile("testurls.txt")
+	if err != nil {
+		log.Fatal(err)
+	}
+	urls := bytes.Split(data, []byte("\n"))
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	done := make(chan bool)
+	go func() {
+		// XX ToDo(erin): adjust
+		time.Sleep(10 * time.Second)
+		done <- true
+	}()
+	for {
+		select {
+		case <-done:
+			fmt.Println("Stopping HTTP traffic.")
+			return
+		case t := <-ticker.C:
+			fmt.Println(t)
+			ri := rand.Intn(len(urls))
+			fmt.Println(ri)
+			url := urls[ri]
+			_, err := http.Get(string(url))
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
 }
 
 func MakeNewHttpSniffer() *HttpSniffer {

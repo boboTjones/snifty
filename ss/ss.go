@@ -31,7 +31,7 @@ import (
 	"github.com/google/gopacket/pcap"
 )
 
-var greedy bool
+var greedy, version bool
 var max int
 
 type Result struct {
@@ -75,7 +75,7 @@ func dump(r *Results) {
 				for _, d := range r.Results {
 					counts = append(counts, d.Count)
 				}
-				// Really?
+				// XX ToDo(erin): Really? Doesn't work all of the time, either. DIY this.
 				sort.Sort(sort.Reverse(sort.IntSlice(counts)))
 				fmt.Println("Timestamp\t\tHits\tHost")
 				for x := range counts {
@@ -92,10 +92,15 @@ func dump(r *Results) {
 func init() {
 	flag.BoolVar(&greedy, "g", false, "Run SniftySniff in greedy mode")
 	flag.IntVar(&max, "m", 0, "Specific the number of packets to collect")
+	flag.BoolVar(&version, "v", false, "Print version and exit")
 }
 
 func main() {
 	flag.Parse()
+	if version {
+		fmt.Println("Snifty Sniff version 0.1. You're on the ground floor, baby.")
+		os.Exit(0)
+	}
 	results := &Results{}
 	hs := snifty.NewHttpSniffer("en0", 1600, max, pcap.BlockForever, greedy)
 	fmt.Printf("Snifty Sniff, the HTTP sniffer that is nifty to sift\nGreedy? %v\n", hs.Greedy)

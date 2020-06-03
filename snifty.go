@@ -65,10 +65,6 @@ func NewHttpSniffer(iface string, snaplen int32, max int, timeout time.Duration,
 }
 
 func (hs *HttpSniffer) Listen() {
-	//if <-hs.Exit {
-	//	hs.Close()
-	//}
-
 	bpfFilter := "tcp and dst port 80"
 	i := 0
 

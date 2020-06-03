@@ -23,7 +23,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 	"sort"
+	"time"
 
 	"github.com/bobotjones/snifty"
 	"github.com/google/gopacket/pcap"
@@ -45,13 +47,13 @@ type Results struct {
 func (r *Results) addResult(in snifty.HttpPacket) {
 	for i, v := range r.Results {
 		if v.Host == in.Url.Host {
-			fmt.Printf("Updating results entry for host %s\n", v.Host)
+			//fmt.Printf("Updating results entry for host %s\n", v.Host)
 			r.Results[i].Paths = append(r.Results[i].Paths, []string{in.Url.Path})
 			r.Results[i].Count++
 			return
 		}
 	}
-	fmt.Printf("Adding new host entry %s\n", in.Url.Host)
+	//fmt.Printf("Adding new host entry %s\n", in.Url.Host)
 	paths := [][]string{[]string{in.Url.Path}}
 	result := Result{
 		Host:  in.Url.Host,
@@ -61,19 +63,29 @@ func (r *Results) addResult(in snifty.HttpPacket) {
 	r.Results = append(r.Results, result)
 }
 
-// XX ToDo(erin): needs a channel
-func (r *Results) dumpSortedByCount() {
-	//Yuck
-	counts := make([]int, len(r.Results))
-	for _, d := range r.Results {
-		counts = append(counts, d.Count)
-	}
-	fmt.Println(counts)
-	sort.Ints(counts)
-	fmt.Println(counts)
-
-	for x := range counts {
-		fmt.Printf("%v: %v\n", r.Results[x].Host, r.Results[x].Count)
+func dump(r *Results) {
+	fmt.Println("Collecting...")
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case t := <-ticker.C:
+			if len(r.Results) > 0 {
+				counts := []int{}
+				for _, d := range r.Results {
+					counts = append(counts, d.Count)
+				}
+				// Really?
+				sort.Ints(counts)
+				fmt.Println("Hits\tHost\t\tTimestamp")
+				for x := range counts {
+					_, err := fmt.Fprintf(os.Stdout, "%v\t%v\t\t%v\n", r.Results[x].Count, r.Results[x].Host, t)
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "%v\n", err)
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -84,12 +96,12 @@ func init() {
 
 func main() {
 	flag.Parse()
-
 	results := &Results{}
 	hs := snifty.NewHttpSniffer("en0", 1600, max, pcap.BlockForever, greedy)
 	fmt.Printf("Sniffing HTTP traffic. Greedy? %v\n", hs.Greedy)
 	defer hs.Close()
 	go hs.Listen()
+	go dump(results)
 	for {
 		results.addResult(<-hs.Out)
 	}

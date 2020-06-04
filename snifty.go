@@ -13,8 +13,8 @@
 //    minutes, add another message detailing when the alert recovered.
 //    2 minute window for avg rate
 //    every second sample the counter to see how much it has increased
-//    array of all samples collected up to 120 elements (ring buffer)
-//    average the last seven samples in the array
+//   array of all samples collected up to 120 elements (ring buffer)
+//   average the last seven samples in the array? all of the samples?
 // 6. Make sure all messages showing when alerting thresholds are crossed remain visible
 //    on the page for historical reasons.
 // 7. Write a test for the alerting logic.
@@ -45,19 +45,17 @@ type HttpSniffer struct {
 	IFace   string
 	SnapLen int32
 	Timeout time.Duration
-	Max     int
 	Greedy  bool
 	Out     chan HttpPacket
 	Exit    chan bool
 }
 
-func NewHttpSniffer(iface string, snaplen int32, max int, timeout time.Duration, greedy bool) *HttpSniffer {
+func NewHttpSniffer(iface string, snaplen int32, timeout time.Duration, greedy bool) *HttpSniffer {
 	exit := make(chan bool)
 	out := make(chan HttpPacket)
 	return &HttpSniffer{
 		IFace:   iface,
 		SnapLen: snaplen,
-		Max:     max,
 		Timeout: timeout,
 		Greedy:  greedy,
 		Out:     out,
@@ -67,7 +65,6 @@ func NewHttpSniffer(iface string, snaplen int32, max int, timeout time.Duration,
 
 func (hs *HttpSniffer) Listen() {
 	bpfFilter := "tcp and dst port 80"
-	i := 0
 
 	if hs.Greedy {
 		bpfFilter = "tcp"
@@ -105,13 +102,6 @@ func (hs *HttpSniffer) Listen() {
 					hp.processPayload()
 					hs.Out <- hp
 				}
-			}
-			// XX ToDo(erin): grabs Max total packets, doesn't display Max total packets.
-			// Low priority. Only used for testing.
-			i++
-			if hs.Max != 0 && i >= hs.Max {
-				fmt.Printf("Exiting after %d packets\n", i)
-				hs.Close()
 			}
 		}
 	}

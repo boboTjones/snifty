@@ -43,7 +43,6 @@ type Config struct {
 
 func init() {
 	flag.BoolVar(&greedy, "g", false, "Run SniftySniff in greedy mode")
-	flag.IntVar(&max, "m", 0, "Specific the number of packets to collect")
 	flag.BoolVar(&version, "v", false, "Print version and exit")
 	flag.StringVar(&config, "c", config, "Specify a config file")
 }
@@ -55,12 +54,11 @@ func main() {
 		os.Exit(0)
 	}
 	results := &snifty.Results{Counter: 0}
-	hs := snifty.NewHttpSniffer("en0", 1600, max, pcap.BlockForever, greedy)
+	hs := snifty.NewHttpSniffer("en0", 1600, pcap.BlockForever, greedy)
 	fmt.Printf("Snifty Sniff, the HTTP sniffer that is nifty.\nGreedy? %v\n", hs.Greedy)
 	defer hs.Close()
 	go hs.Listen()
-	go results.Dump()
-	go results.Sample()
+	results.Run()
 	for {
 		results.AddResult(<-hs.Out)
 	}

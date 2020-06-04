@@ -1,0 +1,12 @@
+
+Factor out all output into their own functions instead of printing from inside transform functions... or....
+Separate client and make server
+Annotations feature
+Annotations dashboard
+Sort and filter
+Longer term storage for time window snapshots
+Domains/IPs clickable to, say, shodan or dnslytics, or in-house database history of alerts
+Integrations with YARA sites to leverage existing reputation data
+delete or hide action
+
+        

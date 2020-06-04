@@ -1,9 +1,0 @@
-Annotations feature
-Annotations dashboard
-Sort and filter
-Cache in redis for time window snapshots
-Domains/IPs clickable to, say, shodan or dnslytics, or in-house database history of alerts
-Integrations with YARA sites to leverage existing reputation data
-delete or hide action
-
-        

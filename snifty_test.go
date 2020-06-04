@@ -11,37 +11,35 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/gopacket/pcap"
 )
 
-func genTraffic() {
+var hs *HttpSniffer
+var results *Results
+
+func genTraffic(done chan bool) {
 	data, err := ioutil.ReadFile("testurls.txt")
 	if err != nil {
 		log.Fatal(err)
 	}
 	urls := bytes.Split(data, []byte("\n"))
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	done := make(chan bool)
-	go func() {
-		// XX ToDo(erin): adjust
-		time.Sleep(10 * time.Second)
-		done <- true
-	}()
+	timeout := time.NewTimer(10 * time.Second)
+	fmt.Println("Generating HTTP traffic")
+
 	for {
 		select {
-		case <-done:
-			fmt.Println("Stopping HTTP traffic.")
+		case <-timeout.C:
+			fmt.Println("Stopping HTTP traffic")
+			done <- true
 			return
-		case t := <-ticker.C:
-			fmt.Println(t)
-			ri := rand.Intn(len(urls))
-			fmt.Println(ri)
+		default:
+			ri := rand.Intn(len(urls) - 1)
 			url := urls[ri]
+			fmt.Println("fetching ", string(url))
 			_, err := http.Get(string(url))
 			if err != nil {
-				panic(err)
+				fmt.Println(err)
 			}
+			time.Sleep(time.Second)
 		}
 	}
 }
@@ -54,7 +52,6 @@ func MakeNewHttpSniffer() *HttpSniffer {
 	return &HttpSniffer{
 		IFace:   "en0",
 		SnapLen: 1600,
-		Max:     10,
 		Timeout: timeout,
 		Greedy:  false,
 	}
@@ -63,24 +60,80 @@ func MakeNewHttpSniffer() *HttpSniffer {
 func TestNewHttpSniffer(t *testing.T) {
 	// This is always going to fail.
 	want := MakeNewHttpSniffer()
-	timeout, err := time.ParseDuration("1us")
+	timeout, err := time.ParseDuration("10us")
 	if err != nil {
-		fmt.Errorf("%v", err)
+		t.Fatalf("%v", err)
 	}
-	if got := NewHttpSniffer("en0", 1600, 10, timeout, false); !cmp.Equal(got, want) {
-		t.Errorf("Make new HttpSniff\n\tWanted: %v; Got: %T\n ", want, got)
+	if got := NewHttpSniffer("en0", 1600, timeout, false); !cmp.Equal(got, want) {
+		t.Errorf("Make new HttpSniff\n\tWanted: %v; Got: %v\n ", want, got)
 	}
-	//want.Close()
 }
 
 func TestListen(t *testing.T) {
+	done := make(chan bool, 1)
 	// XX ToDo(erin): this passes but it should make more noise. Fix it.
-	hs := NewHttpSniffer("en0", 1600, 20, pcap.BlockForever, false)
-	fmt.Printf("Sniffing HTTP traffic. Greedy? %v\n", hs.Greedy)
+	timeout, err := time.ParseDuration("10us")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	hs := NewHttpSniffer("en0", 1600, timeout, false)
+	results := &Results{Counter: 0}
+	t.Logf("Sniffing HTTP traffic. Greedy? %v\n", hs.Greedy)
 	defer hs.Close()
 	go hs.Listen()
+	// generate 10 requests at 1 second intervals
+	go genTraffic(done)
 	for {
-		go genTraffic()
-		fmt.Printf("TEST OUTPUT: %v\n", <-hs.Out)
+		results.AddResult(<-hs.Out)
 	}
 }
+
+func TestAddResult(t *testing.T) {
+	results := &Results{Counter: 0}
+	raw := []byte{71, 69, 84, 32, 47, 99, 111, 110, 116, 101, 110, 116, 47, 110, 121, 117, 47, 101, 110, 47, 97, 99, 97, 100, 101, 109, 105, 99, 115, 47, 115, 99, 104, 111, 108, 97, 114, 108, 121, 45, 115, 116, 114, 101, 110, 103, 116, 104, 115, 46, 104, 116, 109, 108, 32, 72, 84, 84, 80, 47, 49, 46, 49, 13, 10, 72, 111, 115, 116, 58, 32, 119, 119, 119, 46, 110, 121, 117, 46, 101, 100, 117, 13, 10, 85, 115, 101, 114, 45, 65, 103, 101, 110, 116, 58, 32, 71, 111, 45, 104, 116, 116, 112, 45, 99, 108, 105, 101, 110, 116, 47, 49, 46, 49, 13, 10, 65, 99, 99, 101, 112, 116, 45, 69, 110, 99, 111, 100, 105, 110, 103, 58, 32, 103, 122, 105, 112, 13, 10, 13, 10}
+	hp := HttpPacket{Section: "www.nyu.edu/content",
+		DstPort: []byte{80},
+		Raw:     raw,
+	}
+	want := Result{Section: hp.Section, Count: 1}
+	results.AddResult(hp)
+	if got := results.Results[0]; !cmp.Equal(got, want) {
+		t.Errorf("Adding result\n\tWanted: %v; Got: %v\n", want, got)
+	}
+}
+
+func TestDump(t *testing.T) {
+	done := make(chan bool, 1)
+	results := &Results{Counter: 0, Exit: done}
+	timeout, err := time.ParseDuration("10us")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	hs := NewHttpSniffer("en0", 1600, timeout, false)
+	defer hs.Close()
+	go hs.Listen()
+	// generate 10 requests at 1 second intervals
+	go genTraffic(done)
+	for !<-done {
+		results.AddResult(<-hs.Out)
+	}
+	results.Dump()
+}
+
+func TestSample(t *testing.T) {
+	done := make(chan bool)
+	results := &Results{Counter: 0}
+	timeout, err := time.ParseDuration("10us")
+	if err != nil {
+		t.Fatalf("%v", err)
+	}
+	hs := NewHttpSniffer("en0", 1600, timeout, false)
+	defer hs.Close()
+	go hs.Listen()
+	go results.Sample()
+	go genTraffic(done)
+	for {
+		results.AddResult(<-hs.Out)
+	}
+}
+func TestAvgMinMax(t *testing.T) {}

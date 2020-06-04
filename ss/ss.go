@@ -52,8 +52,8 @@ func main() {
 	defer hs.Close()
 	go hs.Listen()
 	go results.Dump()
+	go results.Sample()
 	for {
 		results.AddResult(<-hs.Out)
 	}
-
 }

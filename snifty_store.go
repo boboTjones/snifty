@@ -78,7 +78,50 @@ func (r *Results) Dump() {
 						fmt.Fprintf(os.Stderr, "%v\n", err)
 					}
 				}
+				avgminmax(r.Samples)
 			}
 		}
+	}
+}
+
+//    2 minute window for avg rate
+//    average the last seven samples in the array
+
+func (r *Results) Sample() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case _ = <-ticker.C:
+			// every second sample the counter to see how much it has increased
+			// collect 120 samples
+			sample(r)
+		}
+	}
+}
+
+func sample(r *Results) {
+	if len(r.Samples) == 120 {
+		tmp := r.Samples[1:]
+		tmp = append(tmp, r.Counter)
+		r.Samples = tmp
+	} else {
+		r.Samples = append(r.Samples, r.Counter)
+	}
+	r.Counter = 0
+}
+
+func avgminmax(x []int) {
+	total := 0
+	//si := len(x) - 7
+	for _, v := range x {
+		total += v
+	}
+	//average all of the samples or last seven?
+	avg := total / len(x)
+	sorted := sort.IntSlice(x)
+	_, err := fmt.Fprintf(os.Stdout, "Average/Min/Max\t%d/%d/%d\n", avg, sorted[0], sorted[len(sorted)-1])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 	}
 }

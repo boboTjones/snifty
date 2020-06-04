@@ -60,6 +60,8 @@ func main() {
 	go hs.Listen()
 	done := make(chan bool)
 	results.Run(done)
+
+	//for <-done {
 	for {
 		results.AddResult(<-hs.Out)
 	}

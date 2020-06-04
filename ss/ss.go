@@ -58,7 +58,8 @@ func main() {
 	fmt.Printf("Snifty Sniff, the HTTP sniffer that is nifty.\nGreedy? %v\n", hs.Greedy)
 	defer hs.Close()
 	go hs.Listen()
-	results.Run()
+	done := make(chan bool)
+	results.Run(done)
 	for {
 		results.AddResult(<-hs.Out)
 	}

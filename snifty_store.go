@@ -24,6 +24,7 @@ type Results struct {
 	Results []Result
 	Samples []int
 	Counter int
+	Traffic int
 	Exit    chan bool
 }
 
@@ -34,7 +35,9 @@ type Alerts struct {
 // the section for "http://my.site.com/pages/create' is "http://my.site.com/pages"
 
 func (r *Results) AddResult(in HttpPacket) {
+	//fmt.Printf("adding %v\n", in)
 	r.Counter++
+	r.Traffic = r.Traffic + len(in.Raw)
 	for i, v := range r.Results {
 		if v.Section == in.Section {
 			//fmt.Printf("Updating count for section %s\n", in.Section)
@@ -54,13 +57,12 @@ func (r *Results) Close() {
 	return
 }
 
-func (r *Results) Run() {
-	done := make(chan bool, 1)
+func (r *Results) Run(done chan bool) {
 	go DumpTicker(r, done)
 	go SampleTicker(r, done)
 }
 
-func (r *Results) AvgMinMax() {
+func avgminmax(r *Results) {
 	samples := make([]int, len(r.Samples))
 	copy(samples, sort.IntSlice(r.Samples))
 	var avg float64
@@ -100,8 +102,9 @@ func (r *Results) Dump() {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 			}
 		}
+		stats(r)
 	} else {
-		_, err := fmt.Fprintf(os.Stdout, "Collecting...")
+		_, err := fmt.Fprintf(os.Stdout, "Collecting...\n")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%v\n", err)
 		}
@@ -121,4 +124,19 @@ func (r *Results) Sample() {
 
 func (a *Alerts) CheckAlerts() {
 	fmt.Println("High traffic generated an alert - hits = {value}, triggered at {time}")
+}
+
+func stats(r *Results) {
+	samples := make([]int, len(r.Samples))
+	copy(samples, sort.IntSlice(r.Samples))
+	var avg float64
+	total := 0
+	for _, sample := range samples {
+		total += sample
+	}
+	avg = float64(total) / float64(len(samples))
+	_, err := fmt.Fprintf(os.Stdout, "Requests per second (avg/min/max)\t%.2f/%d/%d\nTotal traffic (bytes)\t\t\t%d\n", avg, samples[0], samples[len(samples)-1], r.Traffic)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+	}
 }

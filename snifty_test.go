@@ -70,7 +70,7 @@ func TestNewHttpSniffer(t *testing.T) {
 }
 
 func TestListen(t *testing.T) {
-	done := make(chan bool, 1)
+	done := make(chan bool)
 	// XX ToDo(erin): this passes but it should make more noise. Fix it.
 	timeout, err := time.ParseDuration("10us")
 	if err != nil {
@@ -103,8 +103,8 @@ func TestAddResult(t *testing.T) {
 }
 
 func TestDump(t *testing.T) {
-	done := make(chan bool, 1)
-	results := &Results{Counter: 0, Exit: done}
+	done := make(chan bool)
+	results := &Results{Counter: 0}
 	timeout, err := time.ParseDuration("10us")
 	if err != nil {
 		t.Fatalf("%v", err)
@@ -114,10 +114,14 @@ func TestDump(t *testing.T) {
 	go hs.Listen()
 	// generate 10 requests at 1 second intervals
 	go genTraffic(done)
+	//XX ToDo somehow adding this channel means nothing gets added.
 	for !<-done {
 		results.AddResult(<-hs.Out)
 	}
-	results.Dump()
+	want := 10
+	if got := len(results.Results); got != want {
+		t.Errorf("Test dump failed.\n\tWanted: %d; got %d\n", want, got)
+	}
 }
 
 func TestSample(t *testing.T) {
@@ -130,10 +134,16 @@ func TestSample(t *testing.T) {
 	hs := NewHttpSniffer("en0", 1600, timeout, false)
 	defer hs.Close()
 	go hs.Listen()
-	go results.Sample()
+	results.Sample()
+	// generate 10 requests at 1 second intervals
 	go genTraffic(done)
-	for {
+	//XX ToDo somehow adding this channel means nothing gets added.
+	for !<-done {
 		results.AddResult(<-hs.Out)
 	}
+	results.Sample()
+	want := 10
+	if got := len(results.Samples); got != want {
+		t.Errorf("Test sample failed.\n\tWanted: %d; got %d\n", want, got)
+	}
 }
-func TestAvgMinMax(t *testing.T) {}

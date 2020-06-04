@@ -96,14 +96,15 @@ func (r *Results) Sample() {
 			// every second sample the counter to see how much it has increased
 			// collect 120 samples
 			sample(r)
+			//fmt.Println(r.Samples)
 		}
 	}
 }
 
 func sample(r *Results) {
 	if len(r.Samples) == 120 {
-		tmp := r.Samples[1:]
-		tmp = append(tmp, r.Counter)
+		tmp := r.Samples[:119]
+		tmp = append([]int{r.Counter}, tmp...)
 		r.Samples = tmp
 	} else {
 		r.Samples = append(r.Samples, r.Counter)
@@ -112,15 +113,17 @@ func sample(r *Results) {
 }
 
 func avgminmax(x []int) {
+	var avg float64
 	total := 0
 	//si := len(x) - 7
 	for _, v := range x {
 		total += v
 	}
 	//average all of the samples or last seven?
-	avg := total / len(x)
-	sorted := sort.IntSlice(x)
-	_, err := fmt.Fprintf(os.Stdout, "Average/Min/Max\t%d/%d/%d\n", avg, sorted[0], sorted[len(sorted)-1])
+	avg = float64(total) / float64(len(x))
+	sorted := make([]int, len(x))
+	copy(sorted, sort.IntSlice(x))
+	_, err := fmt.Fprintf(os.Stdout, "Requests per second (avg/min/max)\t%.2f/%d/%d\n", avg, sorted[0], sorted[len(sorted)-1])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 	}

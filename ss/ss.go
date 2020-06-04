@@ -33,11 +33,19 @@ import (
 
 var greedy, version bool
 var max int
+var config string
+
+type Config struct {
+	Greedy int `json:"greedy"`
+	Max    int `json:"max"`
+	// some other things, like maybe specific host?
+}
 
 func init() {
 	flag.BoolVar(&greedy, "g", false, "Run SniftySniff in greedy mode")
 	flag.IntVar(&max, "m", 0, "Specific the number of packets to collect")
 	flag.BoolVar(&version, "v", false, "Print version and exit")
+	flag.StringVar(&config, "c", config, "Specify a config file")
 }
 
 func main() {

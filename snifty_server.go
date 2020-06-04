@@ -47,8 +47,9 @@ func SampleTicker(s sampler, done chan bool) {
 	}
 }
 
+// every 2 minutes, add up the counters and display that
 func AlertTicker(a alerter, done chan bool) {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(120 * time.Second)
 	defer ticker.Stop()
 	for {
 		select {

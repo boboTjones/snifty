@@ -138,8 +138,14 @@ func TestSample(t *testing.T) {
 	// generate 10 requests at 1 second intervals
 	go genTraffic(done)
 	//XX ToDo somehow adding this channel means nothing gets added.
-	for !<-done {
-		results.AddResult(<-hs.Out)
+	for {
+		select {
+		case packet := <-hs.Out:
+			results.AddResult(packet)
+			//fmt.Println(results.Results)
+		case <-done:
+			break
+		}
 	}
 	results.Sample()
 	want := 10

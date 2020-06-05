@@ -162,3 +162,6 @@ func TestSample(t *testing.T) {
 		t.Errorf("Test sample failed.\n\tWanted: %d; got %d\n", want, got)
 	}
 }
+
+func TestCheckAlerts(t *testing.T) {
+}

@@ -1,3 +1,8 @@
+// This is where I would put the handlers for interacting with a more permanent
+// storage, such as redis, ElastiCache or even a simple bitcask in /tmp. Storing
+// data would improve on the design by allowing the program to exit and still
+/// have all previously collected data available when restarted.
+
 package snifty
 
 import (
@@ -6,14 +11,6 @@ import (
 	"sort"
 	"time"
 )
-
-// Future bitcask storage?
-
-// tmp db unique string
-// store in database using url string as key
-// if found, increment counter
-// if not found, create new entry
-// remove db on exit
 
 type Result struct {
 	Section string
@@ -123,14 +120,25 @@ func (r *Results) CheckAlerts() {
 
 func stats(r *Results) {
 	samples := make([]int, len(r.Samples))
-	copy(samples, sort.IntSlice(r.Samples))
-	var avg float64
+	copy(samples, r.Samples)
+	var avg float32
 	total := 0
+	max := 0
+	min := 2147483647
+
 	for _, sample := range samples {
 		total += sample
+		if sample > max {
+			max = sample
+		}
+		if sample < min {
+			min = sample
+		}
 	}
-	avg = float64(total) / float64(len(samples))
-	_, err := fmt.Fprintf(os.Stdout, "Requests per second (avg/min/max)\t%.2f/%d/%d\nTotal traffic (bytes)\t\t\t%d\n", avg, samples[0], samples[len(samples)-1], r.Traffic)
+
+	avg = float32(total) / float32(len(samples))
+
+	_, err := fmt.Fprintf(os.Stdout, "Requests per second (avg/min/max)\t%.2f/%d/%d\nTotal traffic (bytes)\t\t\t%d\n", avg, min, max, r.Traffic)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 	}

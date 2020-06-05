@@ -41,6 +41,23 @@ type Config struct {
 	// some other things, like maybe specific host?
 }
 
+func Stopper(done chan bool) <-chan string {
+	fmt.Println("Tap any key to exit.")
+	s := make(chan string)
+	defer close(s)
+	go func() {
+		for {
+			select {
+			case <-s:
+				done <- true
+			default:
+				fmt.Scanf("%s", &s)
+			}
+		}
+	}()
+	return s
+}
+
 func init() {
 	flag.BoolVar(&greedy, "g", false, "Run SniftySniff in greedy mode")
 	flag.BoolVar(&version, "v", false, "Print version and exit")
@@ -61,7 +78,13 @@ func main() {
 	done := make(chan bool)
 	results.Run(done)
 
-	for {
-		results.AddResult(<-hs.Out)
+	complete := false
+	for !complete {
+		select {
+		case packet := <-hs.Out:
+			results.AddResult(packet)
+		case <-done:
+			complete = true
+		}
 	}
 }

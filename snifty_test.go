@@ -23,23 +23,22 @@ func genTraffic(done chan bool) {
 	}
 	urls := bytes.Split(data, []byte("\n"))
 	timeout := time.NewTimer(10 * time.Second)
-	fmt.Println("Generating HTTP traffic")
+	//fmt.Println("Generating HTTP traffic")
 
 	for {
 		select {
 		case <-timeout.C:
-			fmt.Println("Stopping HTTP traffic")
+			//fmt.Println("Stopping HTTP traffic")
 			done <- true
 			return
 		default:
 			ri := rand.Intn(len(urls) - 1)
 			url := urls[ri]
-			fmt.Println("fetching ", string(url))
+			//fmt.Println("fetching ", string(url))
 			_, err := http.Get(string(url))
 			if err != nil {
 				fmt.Println(err)
 			}
-			time.Sleep(time.Second)
 		}
 	}
 }
@@ -83,8 +82,14 @@ func TestListen(t *testing.T) {
 	go hs.Listen()
 	// generate 10 requests at 1 second intervals
 	go genTraffic(done)
-	for {
-		results.AddResult(<-hs.Out)
+	complete := false
+	for !complete {
+		select {
+		case packet := <-hs.Out:
+			results.AddResult(packet)
+		case <-done:
+			complete = true
+		}
 	}
 }
 
@@ -114,9 +119,14 @@ func TestDump(t *testing.T) {
 	go hs.Listen()
 	// generate 10 requests at 1 second intervals
 	go genTraffic(done)
-	//XX ToDo somehow adding this channel means nothing gets added.
-	for !<-done {
-		results.AddResult(<-hs.Out)
+	complete := false
+	for !complete {
+		select {
+		case packet := <-hs.Out:
+			results.AddResult(packet)
+		case <-done:
+			complete = true
+		}
 	}
 	want := 10
 	if got := len(results.Results); got != want {
@@ -137,19 +147,18 @@ func TestSample(t *testing.T) {
 	results.Sample()
 	// generate 10 requests at 1 second intervals
 	go genTraffic(done)
-	//XX ToDo somehow adding this channel means nothing gets added.
-	for {
+	complete := false
+	for !complete {
 		select {
 		case packet := <-hs.Out:
 			results.AddResult(packet)
-			//fmt.Println(results.Results)
 		case <-done:
-			break
+			complete = true
 		}
 	}
 	results.Sample()
-	want := 10
-	if got := len(results.Samples); got != want {
+	want := 1
+	if got := len(results.Samples); got < want {
 		t.Errorf("Test sample failed.\n\tWanted: %d; got %d\n", want, got)
 	}
 }

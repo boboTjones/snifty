@@ -111,7 +111,7 @@ func (r *Results) CheckAlerts() {
 	for _, sample := range r.Samples {
 		out += sample
 	}
-	if out > r.Threshold {
+	if out > 0 {
 		alert := fmt.Sprintf("High traffic generated an alert - hits = %d, triggered at %s\n", out, time.Now().String())
 		r.Alerts = append(r.Alerts, alert)
 		_, err := fmt.Fprintf(os.Stdout, alert)

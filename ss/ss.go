@@ -26,6 +26,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/bobotjones/snifty"
 	"github.com/google/gopacket/pcap"
@@ -41,23 +43,6 @@ type Config struct {
 	// some other things, like maybe specific host?
 }
 
-func Stopper(done chan bool) <-chan string {
-	fmt.Println("Tap any key to exit.")
-	s := make(chan string)
-	defer close(s)
-	go func() {
-		for {
-			select {
-			case <-s:
-				done <- true
-			default:
-				fmt.Scanf("%s", &s)
-			}
-		}
-	}()
-	return s
-}
-
 func init() {
 	flag.BoolVar(&greedy, "g", false, "Run SniftySniff in greedy mode")
 	flag.BoolVar(&version, "v", false, "Print version and exit")
@@ -70,11 +55,17 @@ func main() {
 		fmt.Println("Snifty Sniff version 0.1. We can only go up from here.")
 		os.Exit(0)
 	}
-	results := &snifty.Results{Counter: 0, Threshold: 12}
+
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
 	hs := snifty.NewHttpSniffer("en0", 1600, pcap.BlockForever, greedy)
 	fmt.Printf("Snifty Sniff, the HTTP sniffer that is nifty.\nGreedy? %v\n", hs.Greedy)
+
 	defer hs.Close()
 	go hs.Listen()
+
+	results := &snifty.Results{Counter: 0, Threshold: 12}
 	done := make(chan bool)
 	results.Run(done)
 
@@ -83,7 +74,8 @@ func main() {
 		select {
 		case packet := <-hs.Out:
 			results.AddResult(packet)
-		case <-done:
+		case <-stop:
+			fmt.Println("\nExiting")
 			complete = true
 		}
 	}

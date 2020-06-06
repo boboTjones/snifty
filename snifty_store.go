@@ -68,17 +68,19 @@ func (r *Results) Dump() {
 		for _, result := range r.Results {
 			hits = append(hits, hc{result.Section, result.Count})
 		}
-		sort.Slice(hits, func(i, j int) bool {
+
+		sort.SliceStable(hits, func(i, j int) bool {
 			return hits[i].count > hits[j].count
 		})
+
 		fmt.Println("Timestamp\t\tHits\tSection")
-		for i, hc := range hits {
+		for i, hit := range hits {
 			// XX ToDo(erin): for now only dump the first 5
 			if i == 5 {
 				break
 			}
 			t := time.Now()
-			_, err := fmt.Fprintf(os.Stdout, "%s\t%d\t%s\n", t.Format("01.02.2006 15:04:05.99"), hc.count, hc.section)
+			_, err := fmt.Fprintf(os.Stdout, "%s\t%d\t%s\n", t.Format("01.02.2006 15:04:05.99"), hit.count, hit.section)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%v\n", err)
 			}
@@ -91,6 +93,8 @@ func (r *Results) Dump() {
 		}
 	}
 }
+
+// XX ToDo(erin): set requests per second here
 
 func (r *Results) Sample() {
 	if len(r.Samples) == 120 {
@@ -108,8 +112,8 @@ func (r *Results) CheckAlerts() {
 	for _, sample := range r.Samples {
 		out += sample
 	}
-	if out > 0 {
-		alert := fmt.Sprintf("High traffic generated an alert - hits = %d, triggered at %s\n", out, time.Now().String())
+	if out > r.Threshold {
+		alert := fmt.Sprintf("High traffic generated an alert - hits = %d, triggered at %s\n", out, time.Now().Format("01.02.2006 15:04:05.99"))
 		r.Alerts = append(r.Alerts, alert)
 		_, err := fmt.Fprintf(os.Stdout, alert)
 		if err != nil {
@@ -121,7 +125,7 @@ func (r *Results) CheckAlerts() {
 func stats(r *Results) {
 	samples := make([]int, len(r.Samples))
 	copy(samples, r.Samples)
-	var avg float32
+	avg := float32(0)
 	total := 0
 	max := 0
 	min := 2147483647

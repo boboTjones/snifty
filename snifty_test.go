@@ -22,8 +22,8 @@ func genTraffic(done chan bool) {
 		log.Fatal(err)
 	}
 	urls := bytes.Split(data, []byte("\n"))
-	timeout := time.NewTimer(10 * time.Second)
-	//fmt.Println("Generating HTTP traffic")
+	timeout := time.NewTimer(500 * time.Millisecond)
+	fmt.Println("Generating HTTP traffic")
 
 	for {
 		select {
@@ -44,7 +44,7 @@ func genTraffic(done chan bool) {
 }
 
 func MakeNewHttpSniffer() *HttpSniffer {
-	timeout, err := time.ParseDuration("1us")
+	timeout, err := time.ParseDuration("500ms")
 	if err != nil {
 		fmt.Errorf("%v", err)
 	}
@@ -57,13 +57,11 @@ func MakeNewHttpSniffer() *HttpSniffer {
 }
 
 func TestNewHttpSniffer(t *testing.T) {
-	// This is always going to fail.
+	// XX ToDo(erin): this is set up to fail on purpose because the got sniffer has channels.
+	// So as to remind me to fix it and also finish the todo list
 	want := MakeNewHttpSniffer()
-	timeout, err := time.ParseDuration("10us")
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	if got := NewHttpSniffer("en0", 1600, timeout, false); !cmp.Equal(got, want) {
+	config := &Config{IFace: "en0", Snaplen: 1600, Timeout: "500ms", Greedy: false}
+	if got := NewHttpSniffer(config); !cmp.Equal(got, want) {
 		t.Errorf("Make new HttpSniff\n\tWanted: %v; Got: %v\n ", want, got)
 	}
 }
@@ -71,11 +69,8 @@ func TestNewHttpSniffer(t *testing.T) {
 func TestListen(t *testing.T) {
 	done := make(chan bool)
 	// XX ToDo(erin): this passes but it should make more noise. Fix it.
-	timeout, err := time.ParseDuration("10us")
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	hs := NewHttpSniffer("en0", 1600, timeout, false)
+	config := &Config{IFace: "en0", Snaplen: 1600, Timeout: "500ms", Greedy: false}
+	hs := NewHttpSniffer(config)
 	results := &Results{Counter: 0}
 	t.Logf("Sniffing HTTP traffic. Greedy? %v\n", hs.Greedy)
 	defer hs.Close()
@@ -91,6 +86,11 @@ func TestListen(t *testing.T) {
 			complete = true
 		}
 	}
+	results.Dump()
+	want := 5
+	if got := len(results.Results); got < want {
+		t.Errorf("Test Listen\n\tWanted %v; got %v", want, got)
+	}
 }
 
 func TestAddResult(t *testing.T) {
@@ -102,6 +102,7 @@ func TestAddResult(t *testing.T) {
 	}
 	want := Result{Section: hp.Section, Count: 1}
 	results.AddResult(hp)
+	results.Dump()
 	if got := results.Results[0]; !cmp.Equal(got, want) {
 		t.Errorf("Adding result\n\tWanted: %v; Got: %v\n", want, got)
 	}
@@ -110,11 +111,8 @@ func TestAddResult(t *testing.T) {
 func TestDump(t *testing.T) {
 	done := make(chan bool)
 	results := &Results{Counter: 0}
-	timeout, err := time.ParseDuration("10us")
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	hs := NewHttpSniffer("en0", 1600, timeout, false)
+	config := &Config{IFace: "en0", Snaplen: 1600, Timeout: "500ms", Greedy: false}
+	hs := NewHttpSniffer(config)
 	defer hs.Close()
 	go hs.Listen()
 	// generate 10 requests at 1 second intervals
@@ -137,14 +135,11 @@ func TestDump(t *testing.T) {
 func TestSample(t *testing.T) {
 	done := make(chan bool)
 	results := &Results{Counter: 0}
-	timeout, err := time.ParseDuration("10us")
-	if err != nil {
-		t.Fatalf("%v", err)
-	}
-	hs := NewHttpSniffer("en0", 1600, timeout, false)
+	config := &Config{IFace: "en0", Snaplen: 1600, Timeout: "500ms", Greedy: false}
+	hs := NewHttpSniffer(config)
 	defer hs.Close()
 	go hs.Listen()
-	results.Sample()
+
 	// generate 10 requests at 1 second intervals
 	go genTraffic(done)
 	complete := false
@@ -156,6 +151,7 @@ func TestSample(t *testing.T) {
 			complete = true
 		}
 	}
+
 	results.Sample()
 	want := 1
 	if got := len(results.Samples); got < want {

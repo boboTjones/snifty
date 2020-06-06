@@ -1,5 +1,7 @@
+requests per second 
+alerting is broken. fix it.
 
-Factor out all output into their own functions instead of printing from inside transform functions... or....
+// [ ] Explain how you’d improve on this application design. (todo move notes to readme)
 Separate client and make server
 Annotations feature
 Annotations dashboard

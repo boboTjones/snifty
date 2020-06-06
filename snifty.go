@@ -50,14 +50,34 @@ type HttpSniffer struct {
 	Exit    chan bool
 }
 
-func NewHttpSniffer(iface string, snaplen int32, timeout time.Duration, greedy bool) *HttpSniffer {
+type Config struct {
+	Greedy    bool   `json:"greedy"`
+	Max       int    `json:"max"`
+	Timeout   string `json:"timeout"`
+	IFace     string `json:"iface"`
+	Snaplen   int32  `json:"snaplen"`
+	Threshold int    `json:"threshold"`
+	// some other things, like maybe specific host?
+}
+
+func NewHttpSniffer(c *Config) *HttpSniffer {
 	exit := make(chan bool)
 	out := make(chan HttpPacket)
+	var timeout time.Duration
+	var err error
+	if c.Timeout == "" {
+		timeout = pcap.BlockForever
+	} else {
+		timeout, err = time.ParseDuration(c.Timeout)
+		if err != nil {
+			log.Fatalf("Can't make a sniffer. Here's why: %v\n", err)
+		}
+	}
 	return &HttpSniffer{
-		IFace:   iface,
-		SnapLen: snaplen,
+		IFace:   c.IFace,
+		SnapLen: c.Snaplen,
 		Timeout: timeout,
-		Greedy:  greedy,
+		Greedy:  c.Greedy,
 		Out:     out,
 		Exit:    exit,
 	}

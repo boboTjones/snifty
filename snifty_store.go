@@ -6,9 +6,10 @@
 package snifty
 
 import (
+	"bytes"
 	"fmt"
-	"os"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -21,15 +22,22 @@ type Results struct {
 	Results   []Result
 	Samples   []int
 	Counter   int
+	Total     int
 	Traffic   int
 	Exit      chan bool
-	Alerts    []string
+	Alerts    *bytes.Buffer
 	Threshold int
+	Start     time.Time
+	Clear     bool
 }
+
+var sLock sync.RWMutex
 
 // the section for "http://my.site.com/pages/create' is "http://my.site.com/pages"
 
 func (r *Results) Run(done chan bool) {
+	r.Start = time.Now()
+	r.Clear = false
 	go DumpTicker(r, done)
 	go SampleTicker(r, done)
 	go AlertTicker(r, done)
@@ -42,6 +50,7 @@ func (r *Results) Close() {
 func (r *Results) AddResult(in HttpPacket) {
 	//fmt.Printf("adding %v\n", in)
 	r.Counter++
+	r.Total++
 	r.Traffic = r.Traffic + len(in.Raw)
 	for i, v := range r.Results {
 		if v.Section == in.Section {
@@ -60,67 +69,80 @@ func (r *Results) AddResult(in HttpPacket) {
 
 func (r *Results) Dump() {
 	if len(r.Results) > 0 {
-		type hc struct {
-			section string
-			count   int
-		}
-		var hits []hc
-		for _, result := range r.Results {
-			hits = append(hits, hc{result.Section, result.Count})
-		}
+		sLock.RLock()
+		results := make([]Result, len(r.Results))
+		copy(results, r.Results)
+		sLock.RUnlock()
 
-		sort.SliceStable(hits, func(i, j int) bool {
-			return hits[i].count > hits[j].count
+		sort.SliceStable(results, func(i, j int) bool {
+			return results[i].Count > results[j].Count
 		})
 
-		fmt.Println("Timestamp\t\tHits\tSection")
-		for i, hit := range hits {
+		t := time.Now()
+		fmt.Println("------------------------------------------------------------------------------------")
+		fmt.Printf("%s\tHits\tSection\n", t.Format("01.02.2006 15:04:05.99"))
+		fmt.Println("------------------------------------------------------------------------------------")
+
+		for i, hit := range results {
 			// XX ToDo(erin): for now only dump the first 5
 			if i == 5 {
 				break
 			}
-			t := time.Now()
-			_, err := fmt.Fprintf(os.Stdout, "%s\t%d\t%s\n", t.Format("01.02.2006 15:04:05.99"), hit.count, hit.section)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "%v\n", err)
-			}
+			fmt.Printf("                      \t %d\t%s\n", hit.Count, hit.Section)
 		}
 		stats(r)
 	} else {
-		_, err := fmt.Fprintf(os.Stdout, "Collecting...\n")
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-		}
+		now := time.Now()
+		fmt.Printf("%s\tWaiting for traffic. Time elapsed: %.2fs\n", now.Format("01.02.2006 15:04:05.99"), now.Sub(r.Start).Seconds())
 	}
 }
 
-// XX ToDo(erin): set requests per second here
-
 func (r *Results) Sample() {
+	sLock.RLock()
+	r.Samples = append(r.Samples, r.Counter)
 	if len(r.Samples) == 120 {
-		tmp := r.Samples[:119]
-		tmp = append([]int{r.Counter}, tmp...)
-		r.Samples = tmp
-	} else {
-		r.Samples = append(r.Samples, r.Counter)
+		r.Samples = r.Samples[1:]
 	}
 	r.Counter = 0
+	sLock.RUnlock()
 }
 
 func (r *Results) CheckAlerts() {
 	out := 0
-	for _, sample := range r.Samples {
+
+	sLock.RLock()
+	samples := make([]int, len(r.Samples))
+	copy(samples, r.Samples)
+	sLock.RUnlock()
+
+	for _, sample := range samples {
 		out += sample
 	}
-	if out > r.Threshold {
-		alert := fmt.Sprintf("High traffic generated an alert - hits = %d, triggered at %s\n", out, time.Now().Format("01.02.2006 15:04:05.99"))
-		r.Alerts = append(r.Alerts, alert)
-		_, err := fmt.Fprintf(os.Stdout, alert)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-		}
+
+	if out < r.Threshold && r.Clear {
+		r.Clear = false
+		fmt.Println("----------ALERT-------------------------------------------------------------------")
+		alert := fmt.Sprintf("High traffic alert cleared at %s", time.Now().Format("01.02.2006 15:04:05.99"))
+		sLock.RLock()
+		r.Alerts.WriteString(alert)
+		sLock.RUnlock()
+		fmt.Println(alert)
+		fmt.Println("------------------------------------------------------------------------------------")
+	}
+
+	if out > r.Threshold && !r.Clear {
+		r.Clear = true
+		alert := fmt.Sprintf("High traffic generated an alert - hits = %d, triggered at %s", out, time.Now().Format("01.02.2006 15:04:05.99"))
+		sLock.RLock()
+		r.Alerts.WriteString(alert)
+		sLock.RUnlock()
+		fmt.Println("----------ALERT-------------------------------------------------------------------")
+		fmt.Println(alert)
+		fmt.Println("------------------------------------------------------------------------------------")
 	}
 }
+
+// XX ToDo(erin): toggle with flag.
 
 func stats(r *Results) {
 	samples := make([]int, len(r.Samples))
@@ -141,9 +163,8 @@ func stats(r *Results) {
 	}
 
 	avg = float32(total) / float32(len(samples))
-
-	_, err := fmt.Fprintf(os.Stdout, "Requests per second (avg/min/max)\t%.2f/%d/%d\nTotal traffic (bytes)\t\t\t%d\n", avg, min, max, r.Traffic)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-	}
+	fmt.Println("------------------------------------------------------------------------------------")
+	fmt.Printf("Requests per second (avg/min/max)\t%.2f/%d/%d\n", avg, min, max)
+	fmt.Printf("Total requests\t\t\t\t%d\n", r.Total)
+	fmt.Printf("Total traffic (bytes)\t\t\t%d\n", r.Traffic)
 }

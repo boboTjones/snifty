@@ -1,1 +1,1 @@
-{"greedy":false, "timeout":"500ms", "iface":"en0", "snaplen": 1600, "threshold": 10}
+{"greedy":false, "timeout":"500ms", "iface":"en0", "snaplen": 1600, "threshold": 5}

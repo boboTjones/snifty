@@ -2,17 +2,13 @@
 //    add a message saying that “High traffic generated an alert - hits = {value}, triggered at {time}”.
 // [] Whenever the total traffic drops again below that value on average for the past 2
 //    minutes, add another message detailing when the alert recovered.
-//    2 minute window for avg rate
-//    every second sample the counter to see how much it has increased
-//    array of all samples collected up to 120 elements (ring buffer)
-//    average the last seven samples in the array
-// [] take a config file in JSON format, parse and use it to populate alerts, counts, etcs
 // [ ] Write a test for the alerting logic.
 // [ ] Explain how you’d improve on this application design. (todo move notes to readme)
 
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -20,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/bobotjones/snifty"
 )
@@ -65,13 +62,14 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
-	fmt.Printf("%T\n", hs)
 	fmt.Printf("Snifty Sniff, the HTTP sniffer that is nifty.\nGreedy? %v\n", hs.Greedy)
 
 	defer hs.Close()
 	go hs.Listen()
 
-	results := &snifty.Results{Counter: 0, Threshold: config.Threshold}
+	alerts := bytes.NewBuffer([]byte(fmt.Sprintf("Starting sniffer at %s\n", time.Now().Format("01.02.2006 15:04:05.99"))))
+	results := &snifty.Results{Counter: 0, Threshold: config.Threshold, Alerts: alerts}
+	// XX ToDo(erin): this channel is to shut everything down cleanly.
 	done := make(chan bool)
 	results.Run(done)
 
@@ -82,6 +80,7 @@ func main() {
 			results.AddResult(packet)
 		case <-stop:
 			fmt.Println("\nExiting")
+			done <- true
 			complete = true
 		}
 	}

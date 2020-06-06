@@ -35,7 +35,7 @@ func DumpTicker(d dumper, done chan bool) {
 
 // SampleTicker runs every second to run the Sample() function.
 func SampleTicker(s sampler, done chan bool) {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {

@@ -25,7 +25,6 @@ import (
 	"bytes"
 	"fmt"
 	"log"
-	"os"
 	"regexp"
 	"time"
 
@@ -46,8 +45,8 @@ type HttpSniffer struct {
 	SnapLen int32
 	Timeout time.Duration
 	Greedy  bool
+	Handle  *pcap.Handle
 	Out     chan HttpPacket
-	Exit    chan bool
 }
 
 type Config struct {
@@ -61,7 +60,6 @@ type Config struct {
 }
 
 func NewHttpSniffer(c *Config) *HttpSniffer {
-	exit := make(chan bool)
 	out := make(chan HttpPacket)
 	var timeout time.Duration
 	var err error
@@ -70,7 +68,7 @@ func NewHttpSniffer(c *Config) *HttpSniffer {
 	} else {
 		timeout, err = time.ParseDuration(c.Timeout)
 		if err != nil {
-			log.Fatalf("Timeout won't parse. Here's why: %v\n", err)
+			log.Fatalf("Timeout won't parse. Here's why: %s\n", err)
 		}
 	}
 	return &HttpSniffer{
@@ -79,67 +77,65 @@ func NewHttpSniffer(c *Config) *HttpSniffer {
 		Timeout: timeout,
 		Greedy:  c.Greedy,
 		Out:     out,
-		Exit:    exit,
 	}
 }
 
 func (hs *HttpSniffer) Listen() {
+	heads := regexp.MustCompile(`^(GET|POST)`)
 	bpfFilter := "tcp and dst port 80"
+	var err error
 
 	if hs.Greedy {
 		bpfFilter = "tcp"
 	}
 
-	if handle, err := pcap.OpenLive(hs.IFace, hs.SnapLen, true, hs.Timeout); err != nil {
+	if hs.Handle, err = pcap.OpenLive(hs.IFace, hs.SnapLen, true, hs.Timeout); err != nil {
 		log.Fatal(err)
-	} else if err := handle.SetBPFFilter(bpfFilter); err != nil {
+	}
+
+	if err = hs.Handle.SetBPFFilter(bpfFilter); err != nil {
 		log.Fatal(err)
-	} else {
-		ps := gopacket.NewPacketSource(handle, handle.LinkType())
-		for p := range ps.Packets() {
-			if a := p.ApplicationLayer(); a != nil {
-				if hs.Greedy {
-					heads := regexp.MustCompile(`^(GET|POST)`)
-					if heads.Match(a.Payload()) {
-						hp := HttpPacket{}
-						hp.Raw = make([]byte, len(a.Payload()))
-						copy(hp.Raw, a.Payload())
-						if tcp := p.Layer(layers.LayerTypeTCP); tcp != nil {
-							if data, ok := tcp.(*layers.TCP); ok {
-								hp.DstPort = []byte(data.DstPort.String())
-								hp.processPayload()
-								hs.Out <- hp
-							} else {
-								log.Fatal(ok)
-							}
-						}
-					}
-				} else {
+	}
+
+	ps := gopacket.NewPacketSource(hs.Handle, hs.Handle.LinkType())
+	for p := range ps.Packets() {
+		if a := p.ApplicationLayer(); a != nil {
+			if hs.Greedy {
+				if heads.Match(a.Payload()) {
 					hp := HttpPacket{}
-					hp.DstPort = []byte("80(http)")
 					hp.Raw = make([]byte, len(a.Payload()))
 					copy(hp.Raw, a.Payload())
-					hp.processPayload()
-					hs.Out <- hp
+					if tcp := p.Layer(layers.LayerTypeTCP); tcp != nil {
+						if data, ok := tcp.(*layers.TCP); ok {
+							hp.DstPort = []byte(data.DstPort.String())
+							hp.processPayload()
+							hs.Out <- hp
+						} else {
+							log.Fatal(ok)
+						}
+					}
 				}
+			} else {
+				hp := HttpPacket{}
+				hp.DstPort = []byte("80(http)")
+				hp.Raw = make([]byte, len(a.Payload()))
+				copy(hp.Raw, a.Payload())
+				hp.processPayload()
+				hs.Out <- hp
 			}
 		}
 	}
 }
 
 func (hs *HttpSniffer) Close() {
-	// XX ToDo(erin) figure out how to close the openlive
-	// thing and do that here instead of bailing.
-	os.Exit(0)
+	hs.Handle.Close()
 }
 
 func (hp *HttpPacket) processPayload() {
-	//defer handlePanic()
-	ua := regexp.MustCompile(`^User-Agent:`)
 	s := bytes.Split(hp.Raw, []byte("\r\n"))
 	for _, d := range s {
-		if ua.Match(d) {
-			// XX ToDo(erin): assumes there's only one colon in the UA string.
+		if bytes.HasPrefix(d, []byte("User-Agent:")) {
+			// XX ToDo(erin): assumes there's only one colon in the UA string, which is Capitalized.
 			// Currently not used for anything. Grabbed for "interesting summary statistics"
 			// Might nix.
 			hp.UserAgent = bytes.Split(d, []byte(": "))[1]

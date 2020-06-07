@@ -9,6 +9,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -52,6 +53,7 @@ func main() {
 		os.Exit(0)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	config := &snifty.Config{}
 
 	if file != "" {
@@ -73,20 +75,15 @@ func main() {
 	}
 
 	hs := snifty.NewHttpSniffer(config)
+	alerts := bytes.NewBuffer([]byte(fmt.Sprintf("Starting sniffer at %s\n", time.Now().Format("01.02.2006 15:04:05.99"))))
+	results := &snifty.Results{Counter: 0, Threshold: config.Threshold, Alerts: alerts}
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
-	fmt.Printf("Snifty Sniff, the HTTP sniffer that is nifty.\nGreedy? %v\n", hs.Greedy)
-
-	defer hs.Close()
+	fmt.Printf("Snifty Sniff, the HTTP sniffer that is nifty.\nGreedy? %t\n", hs.Greedy)
 	go hs.Listen()
-
-	alerts := bytes.NewBuffer([]byte(fmt.Sprintf("Starting sniffer at %s\n", time.Now().Format("01.02.2006 15:04:05.99"))))
-	results := &snifty.Results{Counter: 0, Threshold: config.Threshold, Alerts: alerts}
-	// XX ToDo(erin): this channel is to shut everything down cleanly.
-	done := make(chan bool)
-	results.Run(done)
+	results.Run(ctx)
 
 	complete := false
 	for !complete {
@@ -95,7 +92,7 @@ func main() {
 			results.AddResult(packet)
 		case <-stop:
 			fmt.Println("\nExiting")
-			done <- true
+			cancel()
 			complete = true
 		}
 	}

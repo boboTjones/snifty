@@ -6,58 +6,54 @@
 package snifty
 
 import (
+	"context"
 	"time"
 )
 
-type dumper interface {
-	Dump()
-}
-
-type sampler interface {
-	Sample()
-}
-
-type alerter interface {
-	CheckAlerts()
-}
+const (
+	halfSecond = 500 * time.Millisecond
+	oneSecond  = 1 * time.Second
+	tenSeconds = 10 * time.Second
+	twoMinutes = 120 * time.Second
+)
 
 // DumpTicker runs every 10 seconds to run Dump() to the console.
-func DumpTicker(d dumper, done chan bool) {
-	ticker := time.NewTicker(10 * time.Second)
+func DumpTicker(r *Results, ctx context.Context) {
+	ticker := time.NewTicker(tenSeconds)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			d.Dump()
-		case <-done:
+			r.Dump()
+		case <-ctx.Done():
 			return
 		}
 	}
 }
 
 // SampleTicker runs every half second to collect traffic samples with the Sample() function.
-func SampleTicker(s sampler, done chan bool) {
-	ticker := time.NewTicker(500 * time.Millisecond)
+func SampleTicker(r *Results, ctx context.Context) {
+	ticker := time.NewTicker(halfSecond)
 	defer ticker.Stop()
 	for {
 		select {
 		case _ = <-ticker.C:
-			s.Sample()
-		case <-done:
+			r.Sample()
+		case <-ctx.Done():
 			return
 		}
 	}
 }
 
 // AlertTicker runs every two minutes and checks for alerts.
-func AlertTicker(a alerter, done chan bool) {
-	ticker := time.NewTicker(120 * time.Second)
+func AlertTicker(r *Results, ctx context.Context) {
+	ticker := time.NewTicker(twoMinutes)
 	defer ticker.Stop()
 	for {
 		select {
 		case _ = <-ticker.C:
-			a.CheckAlerts()
-		case <-done:
+			r.CheckAlerts()
+		case <-ctx.Done():
 			return
 		}
 	}

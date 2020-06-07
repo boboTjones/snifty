@@ -1,12 +1,13 @@
 // This is where I would put the handlers for interacting with a more permanent
-// storage, such as redis, ElastiCache or even a simple bitcask in /tmp. Storing
-// data would improve on the design by allowing the program to exit and still
+// storage, such as redis, ElastiCache or even a simple bitcask on the local filesystem.
+// Storing data would improve on the design by allowing the program to exit and still
 /// have all previously collected data available when restarted.
 
 package snifty
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"sort"
 	"sync"
@@ -35,12 +36,12 @@ var sLock sync.RWMutex
 
 // the section for "http://my.site.com/pages/create' is "http://my.site.com/pages"
 
-func (r *Results) Run(done chan bool) {
+func (r *Results) Run(ctx context.Context) {
 	r.Start = time.Now()
 	r.Clear = false
-	go DumpTicker(r, done)
-	go SampleTicker(r, done)
-	go AlertTicker(r, done)
+	go DumpTicker(r, ctx)
+	go SampleTicker(r, ctx)
+	go AlertTicker(r, ctx)
 }
 
 func (r *Results) Close() {
@@ -48,23 +49,22 @@ func (r *Results) Close() {
 }
 
 func (r *Results) AddResult(in HttpPacket) {
-	//fmt.Printf("adding %v\n", in)
+	sLock.RLock()
 	r.Counter++
 	r.Total++
 	r.Traffic = r.Traffic + len(in.Raw)
 	for i, v := range r.Results {
 		if v.Section == in.Section {
-			//fmt.Printf("Updating count for section %s\n", in.Section)
 			r.Results[i].Count++
 			return
 		}
 	}
-	//fmt.Printf("Adding new section %s\n", in.Section)
 	result := Result{
 		Section: in.Section,
 		Count:   1,
 	}
 	r.Results = append(r.Results, result)
+	sLock.RUnlock()
 }
 
 func (r *Results) Dump() {
@@ -79,6 +79,7 @@ func (r *Results) Dump() {
 		})
 
 		t := time.Now()
+		//XX ToDo(erin): might someday want a flag to turn off these --- separators.
 		fmt.Println("------------------------------------------------------------------------------------")
 		fmt.Printf("%s\tHits\tSection\n", t.Format("01.02.2006 15:04:05.99"))
 		fmt.Println("------------------------------------------------------------------------------------")
@@ -127,6 +128,7 @@ func (r *Results) CheckAlerts() {
 		r.Clear = false
 		sLock.RUnlock()
 
+		//XX ToDo(erin): might someday want a flag to turn off these --- separators.
 		fmt.Println("----------ALERT-------------------------------------------------------------------")
 		fmt.Println(alert)
 		fmt.Println("------------------------------------------------------------------------------------")
@@ -140,6 +142,7 @@ func (r *Results) CheckAlerts() {
 		r.Clear = true
 		sLock.RUnlock()
 
+		//XX ToDo(erin): might someday want a flag to turn off these --- separators.
 		fmt.Println("----------ALERT-------------------------------------------------------------------")
 		fmt.Println(alert)
 		fmt.Println("------------------------------------------------------------------------------------")
@@ -167,6 +170,7 @@ func stats(r *Results) {
 	}
 
 	avg = float32(total) / float32(len(samples))
+	//XX ToDo(erin): might someday want a flag to turn off these --- separators.
 	fmt.Println("------------------------------------------------------------------------------------")
 	fmt.Printf("Requests per second (avg/min/max)\t%.2f/%d/%d\n", avg, min, max)
 	fmt.Printf("Total requests\t\t\t\t%d\n", r.Total)

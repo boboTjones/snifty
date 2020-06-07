@@ -28,13 +28,11 @@ func genTraffic(done chan bool) {
 	for {
 		select {
 		case <-timeout.C:
-			//fmt.Println("Stopping HTTP traffic")
 			done <- true
 			return
 		default:
 			ri := rand.Intn(len(urls) - 1)
 			url := urls[ri]
-			//fmt.Println("fetching ", string(url))
 			_, err := http.Get(string(url))
 			if err != nil {
 				fmt.Println(err)
@@ -46,7 +44,7 @@ func genTraffic(done chan bool) {
 func MakeNewHttpSniffer() *HttpSniffer {
 	timeout, err := time.ParseDuration("500ms")
 	if err != nil {
-		fmt.Errorf("%v", err)
+		fmt.Errorf("%s", err)
 	}
 	return &HttpSniffer{
 		IFace:   "en0",
@@ -72,7 +70,7 @@ func TestListen(t *testing.T) {
 	config := &Config{IFace: "en0", Snaplen: 1600, Timeout: "500ms", Greedy: false}
 	hs := NewHttpSniffer(config)
 	results := &Results{Counter: 0}
-	t.Logf("Sniffing HTTP traffic. Greedy? %v\n", hs.Greedy)
+	t.Logf("Sniffing HTTP traffic. Greedy? %t\n", hs.Greedy)
 	defer hs.Close()
 	go hs.Listen()
 	go genTraffic(done)

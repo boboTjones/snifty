@@ -1,5 +1,7 @@
 # welcome to snifty sniff
-### The HTTP sniffer that is nifty to sift
+# Do the following to see this in action:
 
-
-insert build instructions here
+cd snifty
+go install ss/ss.go
+./genTraffic.sh &
+ss -f config/config.json 

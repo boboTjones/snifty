@@ -6,7 +6,6 @@
 package snifty
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -43,10 +42,8 @@ func SampleTicker(s sampler, done chan bool) {
 	for {
 		select {
 		case _ = <-ticker.C:
-			fmt.Println("sampling")
 			s.Sample()
 		case <-done:
-			fmt.Println("done sampling")
 			return
 		}
 	}

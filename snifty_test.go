@@ -75,7 +75,6 @@ func TestListen(t *testing.T) {
 	t.Logf("Sniffing HTTP traffic. Greedy? %v\n", hs.Greedy)
 	defer hs.Close()
 	go hs.Listen()
-	// generate 10 requests at 1 second intervals
 	go genTraffic(done)
 	complete := false
 	for !complete {
@@ -115,7 +114,6 @@ func TestDump(t *testing.T) {
 	hs := NewHttpSniffer(config)
 	defer hs.Close()
 	go hs.Listen()
-	// generate 10 requests at 1 second intervals
 	go genTraffic(done)
 	complete := false
 	for !complete {
@@ -139,8 +137,6 @@ func TestSample(t *testing.T) {
 	hs := NewHttpSniffer(config)
 	defer hs.Close()
 	go hs.Listen()
-
-	// generate 10 requests at 1 second intervals
 	go genTraffic(done)
 	complete := false
 	for !complete {
@@ -160,4 +156,16 @@ func TestSample(t *testing.T) {
 }
 
 func TestCheckAlerts(t *testing.T) {
+	samples := make([]int, 120)
+	alerts := &bytes.Buffer{}
+	results := &Results{Counter: 0, Threshold: 10, Samples: samples, Alerts: alerts, Clear: true}
+	results.CheckAlerts()
+	results.Clear = false
+	for i := 0; i < len(samples); i++ {
+		samples[i] = rand.Intn(120)
+	}
+	results.CheckAlerts()
+	if len(results.Alerts.Bytes()) == 0 {
+		t.Errorf("Test Check Alerts failed.")
+	}
 }

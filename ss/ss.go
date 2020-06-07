@@ -15,6 +15,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"regexp"
 	"syscall"
 	"time"
 
@@ -31,6 +32,19 @@ func init() {
 	flag.StringVar(&file, "f", file, "Specify a config file")
 }
 
+func stripComments(data []byte) []byte {
+	comment := regexp.MustCompile(`^#`)
+	out := &bytes.Buffer{}
+	//XX ToDo(erin): making an assumption here. Don't use this on a server response.
+	tmp := bytes.Split(data, []byte("\n"))
+	for _, line := range tmp {
+		if !comment.Match(line) {
+			out.Write(line)
+		}
+	}
+	return out.Bytes()
+}
+
 func main() {
 	flag.Parse()
 	if version {
@@ -41,12 +55,13 @@ func main() {
 	config := &snifty.Config{}
 
 	if file != "" {
-		c, err := ioutil.ReadFile(file)
+		data, err := ioutil.ReadFile(file)
 		if err != nil {
 			fmt.Printf("Unable to read config file %s. Please try again.\n", file)
 			os.Exit(1)
 		}
-		if err := json.Unmarshal(c, config); err != nil {
+		stripped := stripComments(data)
+		if err := json.Unmarshal(stripped, config); err != nil {
 			fmt.Printf("Unable to parse config file %s:\n(%v)\nPlease try again.\n", err, file)
 			os.Exit(1)
 		}

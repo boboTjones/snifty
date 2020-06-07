@@ -70,7 +70,7 @@ func NewHttpSniffer(c *Config) *HttpSniffer {
 	} else {
 		timeout, err = time.ParseDuration(c.Timeout)
 		if err != nil {
-			log.Fatalf("Can't make a sniffer. Here's why: %v\n", err)
+			log.Fatalf("Timeout won't parse. Here's why: %v\n", err)
 		}
 	}
 	return &HttpSniffer{

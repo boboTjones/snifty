@@ -5,7 +5,10 @@
 //
 package snifty
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type dumper interface {
 	Dump()
@@ -33,15 +36,17 @@ func DumpTicker(d dumper, done chan bool) {
 	}
 }
 
-// SampleTicker runs every second to run the Sample() function.
+// SampleTicker runs every half second to collect traffic samples with the Sample() function.
 func SampleTicker(s sampler, done chan bool) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
 		case _ = <-ticker.C:
+			fmt.Println("sampling")
 			s.Sample()
 		case <-done:
+			fmt.Println("done sampling")
 			return
 		}
 	}

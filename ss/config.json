@@ -1,1 +1,7 @@
-{"greedy":false, "timeout":"500ms", "iface":"en0", "snaplen": 1600, "threshold": 5}
+## Explanation:
+## greedy (bool): Optional; true instructs Snifty Sniff to grab all HTTP packets. Is slower.
+## timeout (string): Optional; timeout for pcap
+## iface (string): Not optional; name of the interface to listen on
+## snaplen (int): Not optional but probably should be. Snap length for pcap
+## threshold (int): Not optional but probably should be. Threshold number of requests per second to configure alert. 
+{"greedy":false, "timeout":"10s", "iface":"en0", "snaplen": 1600, "threshold": 10}

@@ -119,23 +119,27 @@ func (r *Results) CheckAlerts() {
 		out += sample
 	}
 
-	if out < r.Threshold && r.Clear {
-		r.Clear = false
-		fmt.Println("----------ALERT-------------------------------------------------------------------")
+	if out <= r.Threshold && r.Clear {
 		alert := fmt.Sprintf("High traffic alert cleared at %s", time.Now().Format("01.02.2006 15:04:05.99"))
+
 		sLock.RLock()
 		r.Alerts.WriteString(alert)
+		r.Clear = false
 		sLock.RUnlock()
+
+		fmt.Println("----------ALERT-------------------------------------------------------------------")
 		fmt.Println(alert)
 		fmt.Println("------------------------------------------------------------------------------------")
 	}
 
 	if out > r.Threshold && !r.Clear {
-		r.Clear = true
 		alert := fmt.Sprintf("High traffic generated an alert - hits = %d, triggered at %s", out, time.Now().Format("01.02.2006 15:04:05.99"))
+
 		sLock.RLock()
 		r.Alerts.WriteString(alert)
+		r.Clear = true
 		sLock.RUnlock()
+
 		fmt.Println("----------ALERT-------------------------------------------------------------------")
 		fmt.Println(alert)
 		fmt.Println("------------------------------------------------------------------------------------")
